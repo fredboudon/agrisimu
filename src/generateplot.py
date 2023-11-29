@@ -23,7 +23,7 @@ def generate_plots():
 
     borderpole = Cylinder(0.125, 6.81, solid=False)
 
-    # 7.58 à gacuhe
+    # 7.58 a gacuhe
     # 7.02 à droite
     leftangle = 7.58
     rightangle = 7.02
