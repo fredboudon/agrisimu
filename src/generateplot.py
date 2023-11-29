@@ -12,6 +12,7 @@ OPTPROP = { 'PAR' :{ PANELS : (0.01,0.01,0.01,0.01),
 def generate_plots():
     panel = QuadSet([(0,0,0),(1.0,0,0),(1.0,1.93,0),(0,1.93,0)], [list(range(4))])
 
+    panel3 = Translated(0,0,5.12,AxisRotated(Vector3.OX,radians(15),Group([panel, Translated(1.075,0,0,panel), Translated(2.15,0,0, panel)])))
     panel3 = [Translated(0,0,5.12,AxisRotated(Vector3.OX,radians(15), p)) for p in [panel, Translated(1.075,0,0,panel), Translated(2.15,0,0, panel)]]
 
     row = [Translated(7.5*i, 0, 0, p) for i in range(6) for p in panel3]
@@ -23,34 +24,31 @@ def generate_plots():
 
     borderpole = Cylinder(0.125, 6.81, solid=False)
 
-    # 7.58 a gacuhe
+    # 7.58 à gauche
     # 7.02 à droite
     leftangle = 7.58
     rightangle = 7.02
 
-    leftborderpoles = Group([Translated(3.4,0.96+3*i,0,Group([AxisRotated(Vector3.OY, radians(-30), AxisRotated(Vector3.OX, radians(leftangle), borderpole)),
-                        AxisRotated(Vector3.OY, radians(-30), AxisRotated(Vector3.OX, radians(-rightangle), borderpole))])) for i in range(6)])
 
-    rightborderpoles = Group([Translated(48.4,0.96+3*i,0,Group([AxisRotated(Vector3.OY, radians(30), AxisRotated(Vector3.OX, radians(leftangle), borderpole)),
-                        AxisRotated(Vector3.OY, radians(30), AxisRotated(Vector3.OX, radians(-rightangle), borderpole))])) for i in range(6)])
+    leftborderpoles = [Translated(3.4,0.96+3*i,0,p) for p in [AxisRotated(Vector3.OY, radians(-30), AxisRotated(Vector3.OX, radians(leftangle), borderpole)), AxisRotated(Vector3.OY, radians(-30), AxisRotated(Vector3.OX, radians(-rightangle), borderpole))] for i in range(6)]
 
-    borderpoles = Group([leftborderpoles,rightborderpoles])
+    
+    rightborderpoles = [Translated(48.4,0.96+3*i,0,p) for p in [AxisRotated(Vector3.OY, radians(30), AxisRotated(Vector3.OX, radians(leftangle), borderpole)), AxisRotated(Vector3.OY, radians(30), AxisRotated(Vector3.OX, radians(-rightangle), borderpole))] for i in range(6)]
+
+    borderpoles = [leftborderpoles + rightborderpoles]
+
 
     centralpole = Cylinder(0.125/2, 5.9, solid=False)
 
+    
+    leftcentralpoles = [Translated(18.4,0.96+3*i,0,p) for p in [AxisRotated(Vector3.OX, radians(leftangle), centralpole),
+                        AxisRotated(Vector3.OX, radians(-rightangle), centralpole)] for i in range(6)]
 
-    leftcentralpoles = Group([Translated(18.4,0.96+3*i,0,Group([ AxisRotated(Vector3.OX, radians(leftangle), centralpole),
-                        AxisRotated(Vector3.OX, radians(-rightangle), centralpole)])) for i in range(6)])
-
-    rightcentralpoles = Group([Translated(33.4,0.96+3*i,0,Group([ AxisRotated(Vector3.OX, radians(leftangle), centralpole),
-                        AxisRotated(Vector3.OX, radians(-rightangle), centralpole)])) for i in range(6)])
-
-    wireleft = Polyline([(0,0.25,5.18), (51.8,0.25,5.18)])
-    wireright = Polyline([(0,0.25+1.38,5.58), (51.8,0.25+1.38,5.58)])
-    wirerow = Group(wireleft,wireright)
+    rightcentralpoles = [Translated(33.4,0.96+3*i,0,p) for p in [AxisRotated(Vector3.OX, radians(leftangle), centralpole),
+                        AxisRotated(Vector3.OX, radians(-rightangle), centralpole)] for i in range(6)]
 
     wires = Group([Translated(0,3*i,0,wirerow) for i in range(6)])
-    scene = Scene([Shape(panelmatrix, id = PANELS), Shape(borderpoles, id = POLES), Shape(wires, id=WIRES)])
+    scene = Scene([Shape(panelmatrix, id = PANELS), Shape(borderpoles, id = POLES)])
     return scene
 
 ##### TILES FOR RAY TRACING
