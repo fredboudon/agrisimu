@@ -2,16 +2,18 @@
 import pandas
 from openalea.plantgl.all import *
 from alinea.astk.sun_and_sky import sun_sky_sources, sun_sources
-import os, sys, datetime
+import os, sys
 
 from importlib import reload
 import generateplot; reload(generateplot)
 from generateplot import *
-import time
+import time, datetime, pytz
+from os.path import join
 
 DEBUG = False
 
 localisation={'latitude':43.734286, 'longitude':4.570565, 'timezone': 'Europe/Paris'}
+north = -90
 
 def read_meteo(data_file='weather.txt', localisation = localisation['timezone']):
     """ reader for mango meteo files """
@@ -39,7 +41,7 @@ def toCaribuScene(scene, opt_prop) :
     print('done in', time.time() - t)
     return cs
 
-
+# on considere le nord en Y.
 def caribu(scene, sun = None, sky = None, view = False, debug = False):
     from alinea.caribu.light import light_sources
     print('start caribu...')
@@ -47,14 +49,14 @@ def caribu(scene, sun = None, sky = None, view = False, debug = False):
     print('Create light source', end=' ')
     light = []
     if not sun is None:
-        light += light_sources(*sun) 
+        light += light_sources(*sun, orientation = north) 
     if not sky is None:
-        light += light_sources(*sky)
+        light += light_sources(*sky, orientation = north)
     print('... ',len(light),' sources.')
     scene.setLight(light)
     print('Run caribu')
     #raw, agg = scene.run(direct=False, infinite = True, split_face = True, d_sphere = D_SPHERE)
-    raw, agg = scene.run(direct=False, infinite = False, split_face = False)
+    raw, agg = scene.run(direct=True, infinite = False, split_face = False)
     print('made in', time.time() - t)
     if view : 
         scene.plot(raw['PAR']['Ei'])
@@ -67,40 +69,37 @@ def normalize_energy(lights):
     lights = el, az, ei / sumei
     return lights, sumei
 
-import multiprocessing
-import glob
-import pickle
-from random import randint
-from os.path import join
 
 
-def generate_dataframe_data(aggregatedResults, date, name, ei, gus, outdir):
-    aggRc = filter_keys(aggregatedResults['Rc']['Ei'], gus)
-    lres = dict()
-    lres['Entity'] = ['incident']+list(aggRc)
-    for wavelength in ['Rc','Rs','PAR']:
-        for result in ['Ei','Ei_sup','Ei_inf','Eabs']:
-            res = filter_res(aggregatedResults[wavelength][result], gus)
-            if sum(np.array(res) < -1e-5) > 0:
-                errormsg = str(datetime.datetime.now())+' : Error with '+name+' on '+wavelength+'-'+result+' : Negative values found.'
-                print(errormsg)
-                open(os.path.join(outdir,'error.log'),'a').write(errormsg+'\n')
-            lres[name+'-'+wavelength+'-'+result] = [ei]+res
-    return lres
 
-
-def process_caribu(scene, meteo, outdir = None):
+""" Ne considerez que du '17-May' au '31-Oct' """
+def process_caribu(scene, meteo, display = True, outdir = None):
     if outdir and not os.path.exists(outdir):
         os.mkdir(outdir)
 
+    tz = pytz.timezone(localisation['timezone'])
+    initdate = pandas.Timestamp(datetime.datetime(2023, 1,1,0,0,0), tz=tz)
+    mindate = pandas.Timestamp(datetime.datetime(2023, 5,17,0,0,0), tz=tz)
+    maxdate = pandas.Timestamp(datetime.datetime(2023, 11, 1,0,0,0), tz=tz)
+
+    mindate = pandas.Timestamp(datetime.datetime(2023, 5,17,9,0,0), tz=tz)
+    maxdate = pandas.Timestamp(datetime.datetime(2023, 5,17,10,0,0), tz=tz)
 
     for index, row in meteo.iterrows():
         time, globalirr, diffuseirr, temperature = row
-        print(time, globalirr, diffuseirr, temperature)
-        sun, sky= sun_sky_sources(ghi = globalirr, dhi = diffuseirr, **localisation)
-        raw, res = caribu(scene, sun, sky)
-        scene.plot(raw['PAR']['Ei'], minval=0, maxval=100)
-        print(res)
+        cdate = initdate+datetime.timedelta(seconds=time)
+        if cdate >= mindate and cdate < maxdate:
+            print(time, cdate,globalirr, diffuseirr, temperature)
+            sun, sky= sun_sky_sources(ghi = globalirr, dhi = diffuseirr, dates=cdate, **localisation)
+            print(sky)
+            print(sun)
+            raw, res = caribu(scene, sun, sky)
+            print(res)
+            Ei = raw['PAR']['Ei']
+            maxei = max([max(v) for pid,v in Ei.items()])
+            print(maxei)
+            if display:
+                scene.plot(Ei, minval=0, maxval=maxei)
 
 
 
@@ -109,7 +108,7 @@ def main():
     meteo = read_meteo()
 
     # a digitized mango tree
-    scene = generate_plots()
+    scene = generate_plots()+ground()
 
     csScene = toCaribuScene(scene,OPTPROP)
 

@@ -3,10 +3,11 @@ from math import *
 
 PANELS, POLES, WIRES, SOIL, SENSORS = 1,2,3,4,5
 # Reflectance_Up, Transmittance_Up, Reflectance_Down, Transmittance_Down
-OPTPROP = { 'PAR' :{ PANELS : (0.01,0.01,0.01,0.01), 
-                     POLES   : (0.01,0.01,0.01,0.01),
-                     WIRES  : (0.01,0.01,0.01,0.01),
-                     SOIL   : (0.01,0.01,0.01,0.01)}}
+OPTPROP = { 'PAR' :{ PANELS : (0.04,0.0,0.04,0.00), 
+                     POLES  : (0.04,0.00,0.04,0.00),
+                     WIRES  : (0.04,0.00,0.04,0.00),
+                     SOIL   : (0.04,0.00,0.04,0.00)
+                     }}
 
 
 def generate_plots():
@@ -16,7 +17,7 @@ def generate_plots():
 
     row = [Translated(7.5*i, 0, 0, p) for i in range(6) for p in panel3]
 
-    panelmatrix = [Translated(3.7 if j % 2 == 0 else 7.45, 3*j, 0, geom) for j in range(6) for geom in row]
+    panelmatrix = [Translated(3.7 if j % 2 == 0 else 7.45, 3*j, 0, geom) for j in range(5) for geom in row]
 
     scene = Scene([Shape(panel, id = PANELS) for panel in panelmatrix])
     return scene
@@ -60,13 +61,13 @@ groundcol = Material("#B68354", Color3(135,100,80))
 sensorcol = Material("#94B5DA", Color3(148,181,218))
 tile = QuadSet([(0,0,0),(0.5,0,0),(0.5,0.5,0),(0,0.5,0)], [list(range(4))])
 
+def groundids():
+    return [(col, rank)  for rank in range(30) for col in range(100)]
+
 def ground():
-
-    tilecolumn = Group(tile, Group([Translated(0,0.5+0.5*i,0,tile) for i in range(30)]))
-    floor = Group(tilecolumn, Group([Translated(0.5+0.5*i,0,0,tilecolumn) for i in range(99)]))
-
+    floor = [Translated(0.5*col,0.5*rank,0,tile) for col, rank in groundids()]
     ########### GROUND
-    return  Scene([Shape(floor, groundcol, SOIL)])
+    return  Scene([Shape(square, groundcol, SOIL) for square in floor])
 
 def ricesensors(height = 0.7):
     ########### CANOPY HEIGHT
