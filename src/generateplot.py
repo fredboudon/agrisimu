@@ -21,7 +21,6 @@ def generate_plots():
     panelmatrix = [Translated(3.7 if j % 2 == 0 else 7.45, 3*j, 0, geom) for j in range(5) for geom in row]
 
     scene = Scene([Shape(panel, id = PANELS) for panel in panelmatrix])
-    return scene
 
     borderpole = Cylinder(0.125, 6.81, solid=False)
 
@@ -31,25 +30,24 @@ def generate_plots():
     rightangle = 7.02
 
 
-    leftborderpoles = [Translated(3.4,0.96+3*i,0,p) for p in [AxisRotated(Vector3.OY, radians(-30), AxisRotated(Vector3.OX, radians(leftangle), borderpole)), AxisRotated(Vector3.OY, radians(-30), AxisRotated(Vector3.OX, radians(-rightangle), borderpole))] for i in range(6)]
+    leftborderpoles = [Translated(3.4,0.96+3*i,0,p) for p in [AxisRotated(Vector3.OY, radians(-30), AxisRotated(Vector3.OX, radians(leftangle), borderpole)), AxisRotated(Vector3.OY, radians(-30), AxisRotated(Vector3.OX, radians(-rightangle), borderpole))] for i in range(5)]
 
     
-    rightborderpoles = [Translated(48.4,0.96+3*i,0,p) for p in [AxisRotated(Vector3.OY, radians(30), AxisRotated(Vector3.OX, radians(leftangle), borderpole)), AxisRotated(Vector3.OY, radians(30), AxisRotated(Vector3.OX, radians(-rightangle), borderpole))] for i in range(6)]
+    rightborderpoles = [Translated(48.4,0.96+3*i,0,p) for p in [AxisRotated(Vector3.OY, radians(30), AxisRotated(Vector3.OX, radians(leftangle), borderpole)), AxisRotated(Vector3.OY, radians(30), AxisRotated(Vector3.OX, radians(-rightangle), borderpole))] for i in range(5)]
 
-    borderpoles = [leftborderpoles + rightborderpoles]
+    borderpoles = leftborderpoles + rightborderpoles
 
 
     centralpole = Cylinder(0.125/2, 5.9, solid=False)
 
     
     leftcentralpoles = [Translated(18.4,0.96+3*i,0,p) for p in [AxisRotated(Vector3.OX, radians(leftangle), centralpole),
-                        AxisRotated(Vector3.OX, radians(-rightangle), centralpole)] for i in range(6)]
+                        AxisRotated(Vector3.OX, radians(-rightangle), centralpole)] for i in range(5)]
 
     rightcentralpoles = [Translated(33.4,0.96+3*i,0,p) for p in [AxisRotated(Vector3.OX, radians(leftangle), centralpole),
-                        AxisRotated(Vector3.OX, radians(-rightangle), centralpole)] for i in range(6)]
+                        AxisRotated(Vector3.OX, radians(-rightangle), centralpole)] for i in range(5)]
 
-    wires = Group([Translated(0,3*i,0,wirerow) for i in range(6)])
-    scene = Scene([Shape(panelmatrix, id = PANELS), Shape(borderpoles, id = POLES)])
+    scene += Scene([Shape(pole, id = POLES) for pole in borderpoles+leftcentralpoles+rightcentralpoles])
     return scene
 
 ##### TILES FOR RAY TRACING
