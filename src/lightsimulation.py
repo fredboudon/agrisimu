@@ -13,10 +13,10 @@ import time, datetime, pytz
 from os.path import join
 
 DEBUG = False
-RESOLUTION = 0.1
+RESOLUTION = None #0.1
 
-localisation={'latitude':43.734286, 'longitude':4.570565, 'timezone': 'Europe/Paris'}
-north = -90
+localisation={'latitude':-7.473411, 'longitude':112.462442, 'timezone': 'Asia/Jakarta'}
+north = -180
 
 def read_meteo(data_file='weather.txt', localisation = localisation['timezone']):
     """ reader for mango meteo files """
@@ -33,7 +33,20 @@ def read_meteo(data_file='weather.txt', localisation = localisation['timezone'])
     #data = data.set_index(index)
     return data
 
-
+def lightsRepr(sun, sky, dist = 40, spheresize = 0.8):
+  import openalea.plantgl.all as pgl
+  from openalea.plantgl.light import azel2vect
+  from openalea.plantgl.scenegraph.colormap import PglMaterialMap
+  sun_m = sun[1], sun[0], sun[2]
+  sky_m = sky[1], sky[0], sky[2]
+  directions = list(zip(*sun_m)) + list(zip(*sky_m))
+  s = pgl.Scene()
+  sp = Sphere(spheresize)
+  cmap = PglMaterialMap(min([i for az,el,i in directions]),max([i for az,el,i in directions]))
+  for az,el,i in directions:
+    dir = -azel2vect(az, el, north=-north)
+    s += pgl.Shape(pgl.Translated(dir*dist+Vector3(22.5,0,0),sp),cmap(i))
+  return s
 
 def toCaribuScene(scene, opt_prop) :
     from alinea.caribu.CaribuScene import CaribuScene
@@ -66,7 +79,7 @@ def caribu(scene, sun = None, sky = None, view = False, debug = False):
         maxei = max([max(v) for pid,v in Ei.items()])
         scene.plot(Ei, minval=0, maxval=maxei)
         cm = PglMaterialMap(0, maxei)
-        Viewer.add(cm.pglrepr())
+        Viewer.add(lightsRepr(sun, sky)+cm.pglrepr())
     return raw, agg, grid_values(raw['PAR']['Ei'][SOIL])
 
 def mplot( scene, scproperty, minval = None, display = True):
@@ -108,7 +121,6 @@ def grid_values(irradiances):
     return pandas.DataFrame({'column':cols,'rows':rows,'irradiance':irr})
 
 
-
 def plantgllight(scene, sun, sky,  view = False):
     from openalea.plantgl.light import scene_irradiance
     tscene, idmap = toPglScene(scene)    
@@ -134,7 +146,7 @@ def date(month, day, hour):
     return pandas.Timestamp(datetime.datetime(2023, month, day, hour, 0, 0), tz=tz)
 
 """ Ne considerez que du '17-May' au '31-Oct' """
-def process_light(mindate = date(5,17,0), maxdate = date(11, 1,0), usecaribu = True, view = True, outdir = None):
+def process_light(heigth=1.5, orientation = 20, mindate = date(5,17,0), maxdate = date(11, 1,0), usecaribu = True, view = True, outdir = None):
     if outdir and not os.path.exists(outdir):
         os.mkdir(outdir)
 
@@ -142,7 +154,7 @@ def process_light(mindate = date(5,17,0), maxdate = date(11, 1,0), usecaribu = T
     meteo = read_meteo()
 
     # a digitized mango tree
-    scene = generate_plots()+ground()
+    scene = generate_plots(heigth, orientation)+ground()
 
     
     if usecaribu :
@@ -168,5 +180,6 @@ def process_light(mindate = date(5,17,0), maxdate = date(11, 1,0), usecaribu = T
     return results
 
 if __name__ == '__main__':
-    results = process_light(date(5,17,9), date(5,17,10), outdir='result')
+    hour = 17
+    results = process_light(mindate = date(5,17,hour), maxdate = date(5,17,hour+1), outdir='result')
     print(results)
