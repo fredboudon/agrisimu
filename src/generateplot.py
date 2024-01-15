@@ -19,9 +19,10 @@ def generate_plots(heigth = 1.5, orientation=20):
     length = 3
 
     heightdiff = width*sin(radians(orientation))
+    widthdiff = width*cos(radians(orientation))
     panel = QuadSet([(0,0,0),(length,0,0),(length,width,0),(0,width,0)], [list(range(4))])
 
-    orientedpanel = Translated(0,0,heigth,AxisRotated(Vector3.OX,radians(orientation),panel))
+    orientedpanel = Translated(0,width-widthdiff,heigth,AxisRotated(Vector3.OX,radians(orientation),panel))
     orientedpanel2 = Translated(0,4.5,heigth+heightdiff,AxisRotated(Vector3.OX,-radians(orientation),panel))
 
     panelmatrix = [Translated(5*i, 0, 0, ipanel) for i in range(nbpanels) for ipanel in [orientedpanel,orientedpanel2]]
@@ -37,7 +38,7 @@ def generate_plots(heigth = 1.5, orientation=20):
     innerpoles = [Translated(r,c,0,innerpole) for c in [width,width+ricerowwidth] 
                for r in [i*(length+panelinterval) for i in range(nbpanels)]+[i*(length+panelinterval)+length for i in range(nbpanels)]]
 
-    scene += Scene([Shape(pole, id = POLES) for pole in outerpoles+innerpoles])
+    #scene += Scene([Shape(pole, id = POLES) for pole in outerpoles+innerpoles])
     return scene
 
 ##### TILES FOR RAY TRACING

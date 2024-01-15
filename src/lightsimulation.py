@@ -11,6 +11,7 @@ import generateplot; reload(generateplot)
 from generateplot import *
 import time, datetime, pytz
 from os.path import join
+import numpy as np
 
 DEBUG = False
 RESOLUTION = None #0.1
@@ -18,34 +19,23 @@ RESOLUTION = None #0.1
 localisation={'latitude':-7.473411, 'longitude':112.462442, 'timezone': 'Asia/Jakarta'}
 north = -180
 
-def read_meteo(data_file='weather.txt', localisation = localisation['timezone']):
-    """ reader for mango meteo files """
-    import pandas
-    data = pandas.read_csv(data_file, delimiter = '\t',
-                               usecols=['Time','Global','Diffuse','Temp'], dayfirst=True)
-
-    data = data.rename(columns={'Time':'Time',
-                                 'Global':'global_radiation',
-                                 'Temp':'temperature_air'})
-    # convert kW.m-2 to W.m-2
-    #data['global_radiation'] *= 1000. 
-    #index = pandas.DatetimeIndex(data['date']).tz_localize(localisation)
-    #data = data.set_index(index)
-    return data
 
 def lightsRepr(sun, sky, dist = 40, spheresize = 0.8):
   import openalea.plantgl.all as pgl
   from openalea.plantgl.light import azel2vect
   from openalea.plantgl.scenegraph.colormap import PglMaterialMap
   sun_m = sun[1], sun[0], sun[2]
-  sky_m = sky[1], sky[0], sky[2]
-  directions = list(zip(*sun_m)) + list(zip(*sky_m))
+  directions = list(zip(*sun_m)) 
+  if not sky is None:
+    sky_m = sky[1], sky[0], sky[2]
+    directions += list(zip(*sky_m))
   s = pgl.Scene()
   sp = Sphere(spheresize)
-  cmap = PglMaterialMap(min([i for az,el,i in directions]),max([i for az,el,i in directions]))
+  cmap = PglMaterialMap(min(0,min([i for az,el,i in directions])),max([i for az,el,i in directions]))
   for az,el,i in directions:
-    dir = -azel2vect(az, el, north=-north)
-    s += pgl.Shape(pgl.Translated(dir*dist+Vector3(22.5,0,0),sp),cmap(i))
+    if i > 0:
+        dir = -azel2vect(az, el, north=-north)
+        s += pgl.Shape(pgl.Translated(dir*dist+Vector3(22.5,0,0),sp),cmap(i))
   return s
 
 def toCaribuScene(scene, opt_prop) :
@@ -127,8 +117,8 @@ def plantgllight(scene, sun, sky,  view = False):
     print('start plantgl ...')
     t = time.time()
     # permute az, el, irr to el, az, irr
-    sun_m = sun[1], sun[0], sun[2]
-    sky_m = sky[1], sky[0], sky[2]
+    sun_m = sun[1], sun[0], 1 #sun[2]
+    sky_m = sky[1], sky[0], 0 #sky[2]
     directions = list(zip(*sun_m)) + list(zip(*sky_m))
     # For plantgl, north is given in counter clockwise. caribu is given in clockwise.
     defm = scene_irradiance(tscene, directions, horizontal=True, screenresolution=RESOLUTION, scene_unit='m', north = -north)
@@ -142,44 +132,48 @@ def plantgllight(scene, sun, sky,  view = False):
     return defm, defm.groupby('type').sum(), grid_values(gridirradiances)
 
 tz = pytz.timezone(localisation['timezone'])
-def date(month, day, hour):
-    return pandas.Timestamp(datetime.datetime(2023, month, day, hour, 0, 0), tz=tz)
+def date(month, day, hour, minutes=0, seconds = 0):
+    return pandas.Timestamp(datetime.datetime(2023, month, day, hour, minutes, seconds), tz=tz)
+
+from datetime import timedelta
 
 """ Ne considerez que du '17-May' au '31-Oct' """
-def process_light(heigth=1.5, orientation = 20, mindate = date(5,17,0), maxdate = date(11, 1,0), usecaribu = True, view = True, outdir = None):
+def process_light(heigth=0.5, orientation = 50, mindate = date(5,17,0), maxdate = None, timestep = timedelta(days=0, hours = 1, minutes = 0), diffuse = 0, usecaribu = True, view = True, outdir = None):
     if outdir and not os.path.exists(outdir):
         os.mkdir(outdir)
+    
+    if maxdate is None:
+        maxdate = mindate
 
-    # read the meteo
-    meteo = read_meteo()
-
-    # a digitized mango tree
+    # the scene with the panels
     scene = generate_plots(heigth, orientation)+ground()
 
     
     if usecaribu :
         scene = toCaribuScene(scene,OPTPROP)
 
-    initdate = date(1,1,0)
+    currentdate = mindate
 
     results = []
-    for index, row in meteo.iterrows():
-        time, globalirr, diffuseirr, temperature = row
-        cdate = initdate+datetime.timedelta(seconds=time)
-        if cdate >= mindate and cdate < maxdate:
-            print(time, cdate,globalirr, diffuseirr, temperature)
-            sun, sky= sun_sky_sources(ghi = globalirr, dhi = diffuseirr, dates=cdate, **localisation)
+    while currentdate <= maxdate:
+            print(currentdate)
+            sun, sky= sun_sky_sources(ghi = 1, dhi = diffuse, dates=currentdate, **localisation)
+            sun = sun[0], sun[1], np.ones(len(sun[0]))*(1-diffuse)
+            if diffuse == 0:
+                sky = None
             if usecaribu :
                 result = caribu(scene, sun, sky, view=view)
             else:
                 result = plantgllight(scene, sun, sky, view=view)
             _,_,gvalues = result
             if outdir:
-                gvalues.to_csv(join(outdir,'grid_'+cdate.strftime('%Y-%m-%d-%H')+'.csv'),sep='\t')
-            results.append((cdate,gvalues))
+                gvalues.to_csv(join(outdir,'grid_'+currentdate.strftime('%Y-%m-%d-%H-%M')+'.csv'),sep='\t')
+            results.append((currentdate,gvalues))
+            currentdate += timestep
     return results
 
 if __name__ == '__main__':
-    hour = 17
-    results = process_light(mindate = date(5,17,hour), maxdate = date(5,17,hour+1), outdir='result')
+    hour = 13
+    month = 12
+    results = process_light(mindate = date(month,21,hour), outdir='result')
     print(results)
