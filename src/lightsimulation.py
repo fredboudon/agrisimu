@@ -66,13 +66,17 @@ def caribu(scene, sun = None, sky = None, view = False, debug = False):
     print('made in', time.time() - t)
     if view : 
         Ei = raw['PAR']['Ei']
+        minei = min([min(v) for pid,v in Ei.items()])
         maxei = max([max(v) for pid,v in Ei.items()])
-        scene.plot(Ei, minval=0, maxval=maxei)
-        cm = PglMaterialMap(0, maxei)
-        Viewer.add(lightsRepr(sun, sky)+cm.pglrepr())
-    return raw, agg, grid_values(raw['PAR']['Ei'][SOIL])
+        pglscene, _ = scene.plot(Ei, minval=minei, maxval=maxei, display=False)
+        cm = PglMaterialMap(minei, maxei)
+        pglscene +=  lightsRepr(sun, sky)+cm.pglrepr()
+        #Viewer.add(lightsRepr(sun, sky)+cm.pglrepr())
+    else:
+        pglscene = None
+    return raw, agg, grid_values(raw['PAR']['Ei'][SOIL]), pglscene
 
-def mplot( scene, scproperty, minval = None, display = True):
+def mplot( scene, scproperty, minval = None, display = False):
     from openalea.plantgl.scenegraph import Scene, Shape
     from openalea.plantgl.gui import Viewer
     nscene = Scene()
@@ -82,7 +86,7 @@ def mplot( scene, scproperty, minval = None, display = True):
             nscene.add(Shape(sh.geometry, cm(scproperty[sh.id]), sh.id))
     if display:
         Viewer.display(nscene+cm.pglrepr())
-    return nscene
+    return nscene+cm.pglrepr()
 
 def toPglScene(scene):
     t = time.time()
@@ -104,7 +108,7 @@ def _agregate(df, idmap):
     agg = df.aggregate(axis = 1 )
 
 def grid_values(irradiances):
-    irr = [irradiances[i]+irradiances[i+1] for i in range(0,len(irradiances),2)]
+    irr = [(irradiances[i]+irradiances[i+1])/2 for i in range(0,len(irradiances),2)]
     colsrows =  groundids()
     cols = [c for c,r in colsrows]
     rows = [r for c,r in colsrows]
@@ -117,8 +121,14 @@ def plantgllight(scene, sun, sky,  view = False):
     print('start plantgl ...')
     t = time.time()
     # permute az, el, irr to el, az, irr
-    sun_m = sun[1], sun[0], 1 #sun[2]
-    sky_m = sky[1], sky[0], 0 #sky[2]
+    if sun:
+       sun_m = sun[1], sun[0], sun[2]
+    else:
+        sun_m = []
+    if sky:
+       sky_m = sky[1], sky[0], sky[2]
+    else:
+       sky_m = []
     directions = list(zip(*sun_m)) + list(zip(*sky_m))
     # For plantgl, north is given in counter clockwise. caribu is given in clockwise.
     defm = scene_irradiance(tscene, directions, horizontal=True, screenresolution=RESOLUTION, scene_unit='m', north = -north)
@@ -126,10 +136,12 @@ def plantgllight(scene, sun, sky,  view = False):
     defm.insert(2,'type',idmap)
     if view:
         d = dict(list(zip(list(defm.index), defm['irradiance'])))
-        mplot(tscene, d)
+        scene = mplot(tscene, d)
+    else:
+        scene = None
 
     gridirradiances = defm[defm['type']==SOIL]['irradiance'].tolist()
-    return defm, defm.groupby('type').sum(), grid_values(gridirradiances)
+    return defm, defm.groupby('type').sum(), grid_values(gridirradiances), scene
 
 tz = pytz.timezone(localisation['timezone'])
 def date(month, day, hour, minutes=0, seconds = 0):
@@ -138,7 +150,7 @@ def date(month, day, hour, minutes=0, seconds = 0):
 from datetime import timedelta
 
 """ Ne considerez que du '17-May' au '31-Oct' """
-def process_light(heigth=0.5, orientation = 50, mindate = date(5,17,0), maxdate = None, timestep = timedelta(days=0, hours = 1, minutes = 0), diffuse = 0, usecaribu = True, view = True, outdir = None):
+def process_light(heigth=1.2, orientation = 45, shift = 1.2, mindate = date(5,17,0), maxdate = None, timestep = timedelta(days=0, hours = 1, minutes = 0), diffuse = 0, usecaribu = True, view = True, outdir = None):
     if outdir and not os.path.exists(outdir):
         os.mkdir(outdir)
     
@@ -146,7 +158,8 @@ def process_light(heigth=0.5, orientation = 50, mindate = date(5,17,0), maxdate 
         maxdate = mindate
 
     # the scene with the panels
-    scene = generate_plots(heigth, orientation)+ground()
+    scene = generate_plots(heigth, orientation, shift)
+    scene += ground()
 
     
     if usecaribu :
@@ -158,22 +171,29 @@ def process_light(heigth=0.5, orientation = 50, mindate = date(5,17,0), maxdate 
     while currentdate <= maxdate:
             print(currentdate)
             sun, sky= sun_sky_sources(ghi = 1, dhi = diffuse, dates=currentdate, **localisation)
-            sun = sun[0], sun[1], np.ones(len(sun[0]))*(1-diffuse)
+            # sun = sun[0], sun[1], np.ones(len(sun[0]))*(1-diffuse)
             if diffuse == 0:
                 sky = None
             if usecaribu :
                 result = caribu(scene, sun, sky, view=view)
             else:
                 result = plantgllight(scene, sun, sky, view=view)
-            _,_,gvalues = result
+            _,_,gvalues, sc = result
+            fname = join(outdir,'grid__'+('CAR' if usecaribu else 'PGL')+'_'+str(heigth).replace('.','_')+'__'+str(orientation)+'__'+currentdate.strftime('%Y-%m-%d-%H-%M')+'_'+str(shift))
             if outdir:
-                gvalues.to_csv(join(outdir,'grid_'+currentdate.strftime('%Y-%m-%d-%H-%M')+'.csv'),sep='\t')
+                gvalues.to_csv(fname+'.csv',sep='\t')
+                if view:
+                    sc.save(fname+'.bgeom')
             results.append((currentdate,gvalues))
             currentdate += timestep
     return results
 
 if __name__ == '__main__':
-    hour = 13
-    month = 12
-    results = process_light(mindate = date(month,21,hour), outdir='result')
+    day=1
+    month =7
+    results =  process_light(heigth=0.5,orientation=45,mindate = date(month,day,6) , maxdate = date(month,day,17), timestep = timedelta(days=0, hours = 0, minutes = 30), outdir='result', usecaribu=True)
     print(results)
+    #process_light(heigth=1,orientation=1,mindate = date(month,day,6) , maxdate = date(month,day,17), outdir='result')
+    #process_light(heigth=1.5,orientation=1,mindate = date(month,day,6) , maxdate = date(month,day,17), outdir='result')
+    #process_light(heigth=1.8,orientation=1,mindate = date(month,day,6) , maxdate = date(month,day,17), outdir='result')
+    #process_light(heigth=2,orientation=1,mindate = date(month,day,6) , maxdate = date(month,day,17), outdir='result')

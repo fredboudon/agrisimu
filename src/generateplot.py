@@ -13,7 +13,7 @@ nbpanels = 9
 ricerowwidth = 3
 panelinterval = 2
 
-def generate_plots(heigth = 1.5, orientation=20):
+def generate_plots(heigth = 1.5, orientation=20, shift = 1.2):
     width = 1.5
     poleradius = 0.02
     length = 3
@@ -21,22 +21,23 @@ def generate_plots(heigth = 1.5, orientation=20):
     heightdiff = width*sin(radians(orientation))
     widthdiff = width*cos(radians(orientation))
     panel = QuadSet([(0,0,0),(length,0,0),(length,width,0),(0,width,0)], [list(range(4))])
-
-    orientedpanel = Translated(0,width-widthdiff,heigth,AxisRotated(Vector3.OX,radians(orientation),panel))
-    orientedpanel2 = Translated(0,4.5,heigth+heightdiff,AxisRotated(Vector3.OX,-radians(orientation),panel))
+    
+    
+    orientedpanel = Translated(0,width-widthdiff+shift,heigth,AxisRotated(Vector3.OX,radians(orientation),panel)) #original orientedpanel = Translated(0,width-widthdiff,heigth,AxisRotated(Vector3.OX,radians(orientation),panel))
+    orientedpanel2 = Translated(0,4.5-shift,heigth+heightdiff,AxisRotated(Vector3.OX,-radians(orientation),panel))# original orientedpanel2 = Translated(0,4.5,heigth+heightdiff,AxisRotated(Vector3.OX,-radians(orientation),panel))
 
     panelmatrix = [Translated(5*i, 0, 0, ipanel) for i in range(nbpanels) for ipanel in [orientedpanel,orientedpanel2]]
 
     scene = Scene([Shape(panel, id = PANELS) for panel in panelmatrix])
 
-    outerpole = Cylinder(poleradius, heigth, solid=False)
-    innerpole = Cylinder(poleradius, heigth+heightdiff, solid=False)
+    #outerpole = Cylinder(poleradius, heigth, solid=False)
+    #innerpole = Cylinder(poleradius, heigth+heightdiff, solid=False)
 
-    outerpoles = [Translated(r,c,0,outerpole) for c in [0,2*width+ricerowwidth] 
-               for r in [i*(length+panelinterval) for i in range(nbpanels)]+[i*(length+panelinterval)+length for i in range(nbpanels)]]
+    #outerpoles = [Translated(r,c,0,outerpole) for c in [0,2*width+ricerowwidth] 
+     #          for r in [i*(length+panelinterval) for i in range(nbpanels)]+[i*(length+panelinterval)+length for i in range(nbpanels)]]
 
-    innerpoles = [Translated(r,c,0,innerpole) for c in [width,width+ricerowwidth] 
-               for r in [i*(length+panelinterval) for i in range(nbpanels)]+[i*(length+panelinterval)+length for i in range(nbpanels)]]
+    #innerpoles = [Translated(r,c,0,innerpole) for c in [width,width+ricerowwidth] 
+     #          for r in [i*(length+panelinterval) for i in range(nbpanels)]+[i*(length+panelinterval)+length for i in range(nbpanels)]]
 
     #scene += Scene([Shape(pole, id = POLES) for pole in outerpoles+innerpoles])
     return scene
@@ -62,4 +63,7 @@ def ground():
 
 
 if __name__ == '__main__':
-    Viewer.display(generate_panels())
+    Viewer.display(generate_plots())
+
+
+
