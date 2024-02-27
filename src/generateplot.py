@@ -60,12 +60,13 @@ tile = QuadSet([(0,0,0),(0.5,0,0),(0.5,0.5,0),(0,0.5,0)], [list(range(4))])
 def groundids():
     return [(col, rank)  for rank in range(30) for col in range(100)]
 
-def ground():
-    floor = [Translated(0.5*col,0.5*rank,0,tile) for col, rank in groundids()]
+def ground(height = 0):
+    floor = [Translated(0.5*col,0.5*rank,height,tile) for col, rank in groundids()]
     ########### GROUND
     return  Scene([Shape(square, groundcol, SOIL) for square in floor])
 
 def ricesensors(height = 0.7):
+    floor = [Translated(0.5*col,0.5*rank,0,tile) for col, rank in groundids()]
     ########### CANOPY HEIGHT
     floorrice = Translated(0,0,height,floor)
     rice = Shape(floorrice, ricecol, SENSORS)
@@ -78,4 +79,4 @@ def sensors2M(height = 2):
     return Scene(sensor)
 
 if __name__ == '__main__':
-    Viewer.display(generate_panels())
+    Viewer.display(generate_plots())

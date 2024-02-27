@@ -101,7 +101,7 @@ def _agregate(df, idmap):
     agg = df.aggregate(axis = 1 )
 
 def grid_values(irradiances):
-    irr = [irradiances[i]+irradiances[i+1] for i in range(0,len(irradiances),2)]
+    irr = [(irradiances[i]+irradiances[i+1])/2 for i in range(0,len(irradiances),2)]
     colsrows =  groundids()
     cols = [c for c,r in colsrows]
     rows = [r for c,r in colsrows]
@@ -134,16 +134,16 @@ def date(month, day, hour):
     return pandas.Timestamp(datetime.datetime(2023, month, day, hour, 0, 0), tz=tz)
 
 """ Ne considerez que du '17-May' au '31-Oct' """
-def process_light(mindate = date(5,17,0), maxdate = date(11, 1,0), usecaribu = True, view = True, outdir = None):
+def process_light(mindate = date(5,1,0), maxdate = date(11, 1,0), usecaribu = True, view = True, outdir = None):
     if outdir and not os.path.exists(outdir):
         os.mkdir(outdir)
 
     # read the meteo
     meteo = read_meteo()
 
-    # a digitized mango tree
-    scene = generate_plots()+ground()
-
+    # an agrivoltaic scene (generate plot)
+    height = 0.7
+    scene = generate_plots()+ground(height)
     
     if usecaribu :
         scene = toCaribuScene(scene,OPTPROP)
@@ -163,10 +163,12 @@ def process_light(mindate = date(5,17,0), maxdate = date(11, 1,0), usecaribu = T
                 result = plantgllight(scene, sun, sky, view=view)
             _,_,gvalues = result
             if outdir:
-                gvalues.to_csv(join(outdir,'grid_'+cdate.strftime('%Y-%m-%d-%H')+'.csv'),sep='\t')
+                gvalues.to_csv(join(outdir,'grid_'+str(height).replace('.','_')+'_'+cdate.strftime('%Y-%m-%d-%H-%M')+'.csv'),sep='\t')
             results.append((cdate,gvalues))
     return results
 
 if __name__ == '__main__':
-    results = process_light(date(5,17,9), date(5,17,10), outdir='result')
+    # date(month,day,hour)
+    results = process_light(date(5,1,0), date(5,2,0), outdir='result', view=False)
     print(results)
+
