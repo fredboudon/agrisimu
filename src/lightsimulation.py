@@ -16,9 +16,23 @@ import numpy as np
 DEBUG = False
 RESOLUTION = None #0.1
 
-localisation={'latitude':-7.473411, 'longitude':112.462442, 'timezone': 'Asia/Jakarta'}
-north = -180
+localisation={'latitude':43.633443, 'longitude':4.195484, 'timezone': 'Europe/Paris'}
+north = -90
 
+def read_meteo(data_file='weather.txt', localisation = localisation['timezone']):
+    """ reader for meteo files """
+    import pandas
+    data = pandas.read_csv(data_file, delimiter = '\t',
+                               usecols=['Time','Global','Diffuse','Temp'], dayfirst=True)
+
+    data = data.rename(columns={'Time':'Time',
+                                 'Global':'global_radiation',
+                                 'Temp':'temperature_air'})
+    # convert kW.m-2 to W.m-2
+    #data['global_radiation'] *= 1000. 
+    #index = pandas.DatetimeIndex(data['date']).tz_localize(localisation)
+    #data = data.set_index(index)
+    return data
 
 def lightsRepr(sun, sky, dist = 40, spheresize = 0.8):
   import openalea.plantgl.all as pgl
@@ -150,16 +164,17 @@ def date(month, day, hour, minutes=0, seconds = 0):
 from datetime import timedelta
 
 """ Ne considerez que du '17-May' au '31-Oct' """
-def process_light(heigth=1.2, orientation = 45, shift = 1.2, mindate = date(5,17,0), maxdate = None, timestep = timedelta(days=0, hours = 1, minutes = 0), diffuse = 0, usecaribu = True, view = True, outdir = None):
+def process_light(heigth=0, mindate = date(5,17,0), maxdate = None, timestep = timedelta(days=0, hours = 1, minutes = 0), diffuse = 0.5, usecaribu = True, view = True, outdir = None):
     if outdir and not os.path.exists(outdir):
         os.mkdir(outdir)
     
+
     if maxdate is None:
         maxdate = mindate
 
     # the scene with the panels
-    scene = generate_plots(heigth, orientation, shift)
-    scene += ground()
+    scene = generate_plots()
+    scene += ground(heigth)
 
     
     if usecaribu :
@@ -179,7 +194,7 @@ def process_light(heigth=1.2, orientation = 45, shift = 1.2, mindate = date(5,17
             else:
                 result = plantgllight(scene, sun, sky, view=view)
             _,_,gvalues, sc = result
-            fname = join(outdir,'grid__'+('CAR' if usecaribu else 'PGL')+'_'+str(heigth).replace('.','_')+'__'+str(orientation)+'__'+currentdate.strftime('%Y-%m-%d-%H-%M')+'_'+str(shift))
+            fname = join(outdir,'grid__'+str(heigth).replace('.','_')+'__'+str(diffuse).replace('.','_')+'__'+currentdate.strftime('%Y-%m-%d-%H-%M'))
             if outdir:
                 gvalues.to_csv(fname+'.csv',sep='\t')
                 if view:
@@ -191,9 +206,5 @@ def process_light(heigth=1.2, orientation = 45, shift = 1.2, mindate = date(5,17
 if __name__ == '__main__':
     day=1
     month =7
-    results =  process_light(heigth=0.5,orientation=45,mindate = date(month,day,6) , maxdate = date(month,day,17), timestep = timedelta(days=0, hours = 0, minutes = 30), outdir='result', usecaribu=True)
+    results =  process_light(heigth=0.0,mindate = date(month,day,7) , maxdate = date(month,day,17), timestep = timedelta(days=0, hours = 0, minutes = 30), outdir='result', usecaribu=True)
     print(results)
-    #process_light(heigth=1,orientation=1,mindate = date(month,day,6) , maxdate = date(month,day,17), outdir='result')
-    #process_light(heigth=1.5,orientation=1,mindate = date(month,day,6) , maxdate = date(month,day,17), outdir='result')
-    #process_light(heigth=1.8,orientation=1,mindate = date(month,day,6) , maxdate = date(month,day,17), outdir='result')
-    #process_light(heigth=2,orientation=1,mindate = date(month,day,6) , maxdate = date(month,day,17), outdir='result')
