@@ -12,12 +12,14 @@ from generateplot import *
 import time, datetime, pytz
 from os.path import join
 import numpy as np
+from datetime import timedelta
+import matplotlib.pyplot as pp
 
 DEBUG = False
 RESOLUTION = None #0.1
 
-localisation={'latitude':-7.473411, 'longitude':112.462442, 'timezone': 'Asia/Jakarta'}
-north = -180
+north = -90
+
 
 
 def lightsRepr(sun, sky, dist = 40, spheresize = 0.8):
@@ -35,7 +37,7 @@ def lightsRepr(sun, sky, dist = 40, spheresize = 0.8):
   for az,el,i in directions:
     if i > 0:
         dir = -azel2vect(az, el, north=-north)
-        s += pgl.Shape(pgl.Translated(dir*dist+Vector3(22.5,0,0),sp),cmap(i))
+        s += pgl.Shape(pgl.Translated(dir*dist,sp),cmap(i))
   return s
 
 def toCaribuScene(scene, opt_prop) :
@@ -55,6 +57,7 @@ def caribu(scene, sun = None, sky = None, view = False, debug = False):
     print('Create light source', end=' ')
     light = []
     if not sun is None:
+        # orientation: (float)  the angle (deg, positive clockwise) from X+ to North (default: 0)
         light += light_sources(*sun, orientation = north) 
     if not sky is None:
         light += light_sources(*sky, orientation = north)
@@ -74,7 +77,7 @@ def caribu(scene, sun = None, sky = None, view = False, debug = False):
         #Viewer.add(lightsRepr(sun, sky)+cm.pglrepr())
     else:
         pglscene = None
-    return raw, agg, grid_values(raw['PAR']['Ei'][SOIL]), pglscene
+    return raw, agg, [agg['PAR']['Ei'][sensor] for sensor in SENSORS if sensor in agg['PAR']['Ei']] , pglscene
 
 def mplot( scene, scproperty, minval = None, display = False):
     from openalea.plantgl.scenegraph import Scene, Shape
@@ -140,60 +143,119 @@ def plantgllight(scene, sun, sky,  view = False):
     else:
         scene = None
 
-    gridirradiances = defm[defm['type']==SOIL]['irradiance'].tolist()
-    return defm, defm.groupby('type').sum(), grid_values(gridirradiances), scene
+    # gridirradiances = defm[defm['type']==SOIL]['irradiance'].tolist()
+    print(defm)
+    totirr = defm['area']*defm['irradiance']
+    defm2 = defm[['type','area']]
+    defm2['irradiance'] = totirr
+    agg = defm2.groupby('type').sum()
+    agg['irradiance'] /= agg['area']
+    # agg = defm.groupby('type').sum()
+    print(agg)
+    return defm, agg, agg['irradiance'][SENSORS] , scene
 
-tz = pytz.timezone(localisation['timezone'])
-def date(month, day, hour, minutes=0, seconds = 0):
-    return pandas.Timestamp(datetime.datetime(2023, month, day, hour, minutes, seconds), tz=tz)
-
-from datetime import timedelta
-
-""" Ne considerez que du '17-May' au '31-Oct' """
-def process_light(heigth=1.2, orientation = 45, shift = 1.2, mindate = date(5,17,0), maxdate = None, timestep = timedelta(days=0, hours = 1, minutes = 0), diffuse = 0, usecaribu = True, view = True, outdir = None):
+def process_light(genscene, inputdata, mindate = None, maxdate = None, localisation = None, outdir= None, usecaribu = True, view = True):
     if outdir and not os.path.exists(outdir):
         os.mkdir(outdir)
     
     if maxdate is None:
-        maxdate = mindate
-
-    # the scene with the panels
-    scene = generate_plots(heigth, orientation, shift)
-    scene += ground()
-
+        if mindate.hour == 0 and mindate.minute == 0:
+            from copy import copy
+            maxdate = date(mindate.year, mindate.month, mindate.day, 23, 59, localisation=localisation)
+        else:
+            maxdate = mindate
     
-    if usecaribu :
-        scene = toCaribuScene(scene,OPTPROP)
-
     currentdate = mindate
 
-    results = []
-    while currentdate <= maxdate:
-            print(currentdate)
-            sun, sky= sun_sky_sources(ghi = 1, dhi = diffuse, dates=currentdate, **localisation)
-            # sun = sun[0], sun[1], np.ones(len(sun[0]))*(1-diffuse)
-            if diffuse == 0:
-                sky = None
-            if usecaribu :
-                result = caribu(scene, sun, sky, view=view)
-            else:
-                result = plantgllight(scene, sun, sky, view=view)
-            _,_,gvalues, sc = result
-            fname = join(outdir,'grid__'+('CAR' if usecaribu else 'PGL')+'_'+str(heigth).replace('.','_')+'__'+str(orientation)+'__'+currentdate.strftime('%Y-%m-%d-%H-%M')+'_'+str(shift))
-            if outdir:
-                gvalues.to_csv(fname+'.csv',sep='\t')
-                if view:
-                    sc.save(fname+'.bgeom')
-            results.append((currentdate,gvalues))
-            currentdate += timestep
-    return results
+    resultdate = []
+    resultirr = []
+    lastparam = None
+    meteo, refsensors, params = inputdata
+    scene = None
+    if params is None:
+        class NoneIter:
+            def __init__(self):
+                pass
+            def __iter__(self):
+                return self
+            def __next__(self):
+                return None, None
+        paramiter = NoneIter()
+    else:
+        paramiter = params.iterrows()
+    for (cdate, values), (cdate2, param) in zip(meteo.iterrows(), paramiter):
+        ghi, dhi = values
+        if mindate is None or (cdate >= mindate and cdate < maxdate):
+            if param is None:
+                if scene is None:
+                    scene = genscene()
+                    if usecaribu :
+                        scene = toCaribuScene(scene,OPTPROP)
 
+            else:
+                param = param.tolist()
+                if param != lastparam:
+                    print('Generate scene')
+                    scene = genscene(*param)
+                    lastparam = param
+                    if usecaribu :
+                        scene = toCaribuScene(scene,OPTPROP)
+            sun, sky= sun_sky_sources(ghi = ghi, dhi = min(ghi,dhi), dates=cdate, **localisation)
+            if ghi > 0:
+                if usecaribu :
+                    result = caribu(scene, sun, sky, view=view)
+                else:
+                    result = plantgllight(scene, sun, sky, view=view)
+                _,_, sensors, sc = result
+                if outdir :
+                     sc.save(join(outdir,'scene_'+str(cdate)+'.bgeom'))
+            else:
+                sensors = [0 for i in range(len(refsensors.columns))]
+            resultirr.append(sensors)
+            resultdate.append(cdate)
+            print(cdate, ghi, dhi, sensors)
+
+    resultirr = pandas.DataFrame(
+                dict([("vsensor"+str(i), [v[i] for v in resultirr]) for i in range(len(resultirr[0]))]), 
+                     index=resultdate)
+    result = pandas.concat((meteo, resultirr,refsensors), axis=1)
+    result = result.loc[resultirr.index]
+    return result
+
+
+
+def date(year, month, day, hour, minutes=0, seconds = 0, localisation = None):
+    return pandas.Timestamp(datetime.datetime(year, month, day, hour, minutes, seconds), tz=pytz.timezone(localisation['timezone']))
+
+def get_days(df):
+    return list(sorted(set(map(lambda d: str(d.date()),df.index.to_pydatetime()))))
+
+EDF, TOTAL, VALOREM = range(3)
+TEST = VALOREM
 if __name__ == '__main__':
-    day=1
-    month =7
-    results =  process_light(heigth=0.5,orientation=45,mindate = date(month,day,6) , maxdate = date(month,day,17), timestep = timedelta(days=0, hours = 0, minutes = 30), outdir='result', usecaribu=True)
+    if TEST == EDF:
+        scene, localisation, meteo = edf_system()
+        results =  process_light(scene,meteo,mindate = date(2023,10,1,0, localisation=localisation) , 
+                                   maxdate = date(2023,10,1,23,50, localisation=localisation), 
+                                   localisation=localisation,
+                                   outdir='result_edf', usecaribu=True)
+        results.to_csv('edf_result.csv')
+    elif TEST == TOTAL:
+        scene, localisation, meteo = total_system()
+        results =  process_light(scene,meteo,mindate = date(2023,4,4,0, localisation=localisation) , 
+                                   maxdate = date(2023,4,4,23,50, localisation=localisation), 
+                                   localisation=localisation,
+                                   outdir='result_total', usecaribu=True)
+        results.to_csv('total_result.csv')
+    elif TEST == VALOREM:
+        scene, localisation, meteo = valorem_system()
+        # print(get_days(meteo))
+        # ['2023-06-22', '2023-07-03', '2023-07-14', '2023-09-25', '2023-10-27', '2023-11-05']
+        results =  process_light(scene,meteo,localisation=localisation, mindate = date(2023,7,3,0,0, localisation=localisation),
+                                   outdir='result_valorem', usecaribu=True)
+        results.to_csv('valorem_result.csv')
+
+
     print(results)
-    #process_light(heigth=1,orientation=1,mindate = date(month,day,6) , maxdate = date(month,day,17), outdir='result')
-    #process_light(heigth=1.5,orientation=1,mindate = date(month,day,6) , maxdate = date(month,day,17), outdir='result')
-    #process_light(heigth=1.8,orientation=1,mindate = date(month,day,6) , maxdate = date(month,day,17), outdir='result')
-    #process_light(heigth=2,orientation=1,mindate = date(month,day,6) , maxdate = date(month,day,17), outdir='result')
+    results.plot()
+    pp.show()
