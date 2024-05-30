@@ -15,6 +15,7 @@ for i in SENSORS:
     OPTPROP['PAR'][i] = (0.04,0.00,0.04,0.00)
 
 
+# On prend du PAR en entrée et pas du GHI
 
 def edf_system():
     nbrows = 16
@@ -22,12 +23,13 @@ def edf_system():
     panetotlength = 7.47
     panelinterspace = 0.6
     panelsize = (2.1,(panetotlength-panelinterspace)/2)
-    interrows =  (48-nbrows*panelsize[0])/(nbrows-1) if nbrows > 1 else 0
-    intercolumns = (32.1-(nbcolumns*panetotlength))/(nbcolumns-1) if nbcolumns > 1 else 0
-    heigth = 4.58
-    sensorwidth = 0.2
+    interrows =  (48-nbrows*panelsize[0])/(nbrows-1) if nbrows > 1 else 0 
+    intercolumns = 12 # (32.1-(nbcolumns*panetotlength))/(nbcolumns-1) if nbcolumns > 1 else 0 #12 pas 32.1
+    heigth = 4.58, 4.56, 4.53
+    sensorwidth = 0.2 # 0.01
     sensorheight = 0.8
     sensorpos = (25.3,2.5)
+    sensorpos = (18.235,1.05)
 
     def read_inputdata(data_file, localisation ):
         """ reader for mango meteo files """
@@ -55,11 +57,11 @@ def edf_system():
                          (panelinterspace/2,               panelsize[0]/2, 0)], [list(range(4))])
         nb = 20
         unit = Group(#[Translated(0, 0, i*heigth/nb, Cylinder(poleradius, heigth/nb, slices = 8, solid=False)) for i in range(nb)]+
-                     [Translated(0, 0, heigth, AxisRotated(Vector3.OY, radians(orientation), panel) if orientation != 0 else panel), 
-                      Translated(0, 0, heigth, AxisRotated(Vector3.OY, radians(180+orientation),AxisRotated(Vector3.OX, radians(180),panel)) if orientation != 0 else panel)])
+                     [Translated(0, 0, 0, AxisRotated(Vector3.OY, radians(orientation), panel) if orientation != 0 else panel), 
+                      Translated(0, 0, 0, AxisRotated(Vector3.OY, radians(180+orientation),AxisRotated(Vector3.OX, radians(180),panel)) if orientation != 0 else panel)])
         
         ydecal = (panelsize[0]+interrows)*nbrows/2
-        panelmatrix = [Translated((panetotlength+intercolumns)*j-(panetotlength+intercolumns), (panelsize[0]+interrows)*i-ydecal, 0, unit) for i in range(nbrows) for j in range(nbcolumns)]
+        panelmatrix = [Translated(intercolumns*(j-(nbcolumns-1)/2), (panelsize[0]+interrows)*i-ydecal, height[i], unit) for i in range(nbrows) for j in range(nbcolumns)]
 
         scene = Scene([Shape(panel, id = PANELS) for panel in panelmatrix])
 
@@ -76,7 +78,7 @@ def edf_system():
 
 def total_system():
     poleradius = 0.05
-    panelheigth = 1.002
+    panelheigth = 1.002 # 1.045*2
     panelheigthshift = 0.8
     panellong = 1.996
     interrow = 12
@@ -114,6 +116,8 @@ def total_system():
         data = data.rename(columns={'GHI':'ghi',
                                     'DHI':'dhi',
                                     'PAR':'sensor0'})
+        data['ghi'] *=  1.9 # /4.57)
+        data['dhi'] *=  1.9 #/4.57)
         # convert kW.m-2 to W.m-2
         #data['global_radiation'] *= 1000. 
         del data['Timestamp']
@@ -136,9 +140,9 @@ def valorem_system():
     interrow = 10
     sensorwidth = 0.2
     sensorheight = 0.5
-    sensorpos1 = [0,-interrow/2-panellarge/2+0.5]
+    sensorpos1 = [0,-interrow/2-panellarge/2+0.5+3.3+3.1]
     sensorpos2 = [0,-interrow/2-panellarge/2+0.5+3.3]
-    sensorpos3 = [0,-interrow/2-panellarge/2+0.5+3.3+3.1]
+    sensorpos3 = [0,-interrow/2-panellarge/2+0.5]
     allsensorpos = [sensorpos1,sensorpos2, sensorpos3]
     nb = 10
 
@@ -170,7 +174,7 @@ def valorem_system():
         dates =  data['Date']+' '+data['Heure']
         dates = pandas.to_datetime(dates) #, format='%d/%m/%Y %H:%M')
         data['dhi'] = data['Temoin_GHI'] * data['Temoin_PAR_DHI'] / data['Temoin_PAR']
-
+        # prendre PAR
         data = data.rename(columns={'Temoin_GHI':'ghi'})
         # convert kW.m-2 to W.m-2
         #data['global_radiation'] *= 1000. 
@@ -186,7 +190,7 @@ def valorem_system():
     return genscene, localisation, meteo
 
 if __name__ == '__main__':
-    Viewer.display(valorem_system()[0](20))
+    Viewer.display(edf_system()[0](20))
 
 
 
