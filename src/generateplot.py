@@ -1,6 +1,7 @@
 from openalea.plantgl.all import *
 from math import *
 import pandas
+import pytz
 
 PANELS, POLES, WIRES, SOIL = 1,2,3,4
 SENSORS = range(10,13)
@@ -25,8 +26,8 @@ def edf_system():
     panelsize = (2.1,(panetotlength-panelinterspace)/2)
     interrows =  (48-nbrows*panelsize[0])/(nbrows-1) if nbrows > 1 else 0 
     intercolumns = 12 # (32.1-(nbcolumns*panetotlength))/(nbcolumns-1) if nbcolumns > 1 else 0 #12 pas 32.1
-    heigth = 4.58, 4.56, 4.53
-    sensorwidth = 0.2 # 0.01
+    heights = 4.58, 4.56, 4.53
+    sensorwidth = 0.1 # 0.01
     sensorheight = 0.8
     sensorpos = (25.3,2.5)
     sensorpos = (18.235,1.05)
@@ -38,15 +39,15 @@ def edf_system():
                                 usecols=['date','Ray_PAR_APV_1', 'Ray_PAR_Control','Ray_PAR_Diffus_Control','Tracking_angles_alpha'], dayfirst=True)
         dates = pandas.to_datetime(data['date'], format='%d/%m/%Y %H:%M')
 
-        data = data.rename(columns={'Ray_PAR_Control':'ghi',
-                                    'Ray_PAR_Diffus_Control':'dhi',
+        data = data.rename(columns={'Ray_PAR_Control':'par',
+                                    'Ray_PAR_Diffus_Control':'pardiffus',
                                     'Ray_PAR_APV_1':'sensor0'})
         # convert kW.m-2 to W.m-2
         #data['global_radiation'] *= 1000. 
         del data['date']
         index = pandas.DatetimeIndex(dates).tz_localize(localisation['timezone'])
         data = data.set_index(index)
-        return data[['ghi','dhi']],data[['sensor0']],data[['Tracking_angles_alpha']]
+        return data[['par','pardiffus']],data[['sensor0']],data[['Tracking_angles_alpha']]
 
     def genscene(orientation=0):
         poleradius = 0.05
@@ -56,12 +57,12 @@ def edf_system():
                          (panelinterspace/2+panelsize[1],  panelsize[0]/2, 0),
                          (panelinterspace/2,               panelsize[0]/2, 0)], [list(range(4))])
         nb = 20
-        unit = Group(#[Translated(0, 0, i*heigth/nb, Cylinder(poleradius, heigth/nb, slices = 8, solid=False)) for i in range(nb)]+
-                     [Translated(0, 0, 0, AxisRotated(Vector3.OY, radians(orientation), panel) if orientation != 0 else panel), 
-                      Translated(0, 0, 0, AxisRotated(Vector3.OY, radians(180+orientation),AxisRotated(Vector3.OX, radians(180),panel)) if orientation != 0 else panel)])
+        units = Group(#[Translated(0, 0, i*heigth/nb, Cylinder(poleradius, heigth/nb, slices = 8, solid=False)) for i in range(nb)]+
+                     [panel if orientation != 0 else AxisRotated(Vector3.OY, radians(orientation), panel)  , 
+                      AxisRotated(Vector3.OY, radians(180+orientation),AxisRotated(Vector3.OX, radians(180),panel))])
         
         ydecal = (panelsize[0]+interrows)*nbrows/2
-        panelmatrix = [Translated(intercolumns*(j-(nbcolumns-1)/2), (panelsize[0]+interrows)*i-ydecal, height[i], unit) for i in range(nbrows) for j in range(nbcolumns)]
+        panelmatrix = [Translated(intercolumns*(j-(nbcolumns-1)/2), (panelsize[0]+interrows)*i-ydecal, heights[j], unit) for i in range(nbrows) for j in range(nbcolumns) for unit in units]
 
         scene = Scene([Shape(panel, id = PANELS) for panel in panelmatrix])
 
@@ -78,7 +79,7 @@ def edf_system():
 
 def total_system():
     poleradius = 0.05
-    panelheigth = 1.002 # 1.045*2
+    panelheigth = 1.045*2
     panelheigthshift = 0.8
     panellong = 1.996
     interrow = 12
@@ -92,8 +93,8 @@ def total_system():
 
         panel = QuadSet([(0,  -panellong*11, panelheigthshift),
                          (0,  -panellong*11, panelheigthshift+panelheigth),
-                         (0, panellong*11,panelheigthshift+panelheigth),
-                         (0, panellong*11,panelheigth)], [list(range(4))])
+                         (0, panellong*11,   panelheigthshift+panelheigth),
+                         (0, panellong*11,   panelheigthshift)], [list(range(4))])
         
         panelmatrix = [Translated(-interrow/2,0,0,panel),Translated(interrow/2,0,0,panel)]
 
@@ -113,18 +114,17 @@ def total_system():
                                 usecols=['Timestamp','BNI', 'GHI','DHI','PAR','PAR_ZT'], dayfirst=True)
         dates = pandas.to_datetime(data['Timestamp'], format='%d/%m/%Y %H:%M')
 
-        data = data.rename(columns={'GHI':'ghi',
-                                    'DHI':'dhi',
+        data = data.rename(columns={'PAR_ZT':'par',
                                     'PAR':'sensor0'})
-        data['ghi'] *=  1.9 # /4.57)
-        data['dhi'] *=  1.9 #/4.57)
+        data['pardiffus'] =  data['par']*data['DHI']/data['GHI']
         # convert kW.m-2 to W.m-2
         #data['global_radiation'] *= 1000. 
         del data['Timestamp']
         index = pandas.DatetimeIndex(dates).tz_localize(localisation['timezone'])
         data = data.set_index(index)
-        print(data)
-        return data[['ghi','dhi']],data[['sensor0']],None
+        #data.plot()s
+        print('plot')
+        return data[['par','pardiffus']],data[['sensor0']],None
 
     meteo = read_meteo('donnees_PNR_modelisation_recalibration.csv',localisation)
 
@@ -190,7 +190,7 @@ def valorem_system():
     return genscene, localisation, meteo
 
 if __name__ == '__main__':
-    Viewer.display(edf_system()[0](20))
+    Viewer.display(total_system()[0](0))
 
 
 

@@ -15,30 +15,16 @@ import numpy as np
 from datetime import timedelta
 import matplotlib.pyplot as pp
 
+from lightpath import *
+
 DEBUG = False
-RESOLUTION = None #0.1
+RESOLUTION = 0.02
 
 north = -90
 
 
 
-def lightsRepr(sun, sky, dist = 40, spheresize = 0.8):
-  import openalea.plantgl.all as pgl
-  from openalea.plantgl.light import azel2vect
-  from openalea.plantgl.scenegraph.colormap import PglMaterialMap
-  sun_m = sun[1], sun[0], sun[2]
-  directions = list(zip(*sun_m)) 
-  if not sky is None:
-    sky_m = sky[1], sky[0], sky[2]
-    directions += list(zip(*sky_m))
-  s = pgl.Scene()
-  sp = Sphere(spheresize)
-  cmap = PglMaterialMap(min(0,min([i for az,el,i in directions])),max([i for az,el,i in directions]))
-  for az,el,i in directions:
-    if i > 0:
-        dir = -azel2vect(az, el, north=-north)
-        s += pgl.Shape(pgl.Translated(dir*dist,sp),cmap(i))
-  return s
+
 
 def toCaribuScene(scene, opt_prop) :
     from alinea.caribu.CaribuScene import CaribuScene
@@ -158,7 +144,7 @@ def process_light(name, genscene, inputdata, mindate = None, maxdate = None, loc
     if outdir and not os.path.exists(outdir):
         os.mkdir(outdir)
     
-    if maxdate is None:
+    if maxdate is None and mindate != None:
         if mindate.hour == 0 and mindate.minute == 0:
             from copy import copy
             maxdate = date(mindate.year, mindate.month, mindate.day, 23, 59, localisation=localisation)
@@ -208,7 +194,7 @@ def process_light(name, genscene, inputdata, mindate = None, maxdate = None, loc
                 else:
                     result = plantgllight(scene, sun, sky, view=view)
                 _,_, sensors, sc = result
-                if outdir :
+                if outdir and sc :
                      sc.save(join(outdir,'scene_'+str(cdate)+'.bgeom'))
             else:
                 sensors = [0 for i in range(len(refsensors.columns))]
@@ -224,7 +210,7 @@ def process_light(name, genscene, inputdata, mindate = None, maxdate = None, loc
     result = pandas.concat((meteo, resultirr,refsensors), axis=1)
     result = result.loc[resultirr.index]
 
-    fresult = pandas.DataFrame([]
+    fresult = pandas.DataFrame(
                 dict([(name, [v[i] for v in finalresult]) for i, name in enumerate(['site', 'date', 'sensor', 'r_intercepted'])]))
 
     return result, fresult
@@ -237,32 +223,36 @@ def date(year, month, day, hour, minutes=0, seconds = 0, localisation = None):
 def get_days(df):
     return list(sorted(set(map(lambda d: str(d.date()),df.index.to_pydatetime()))))
 
-EDF, TOTAL, VALOREM = range(3)
-TEST = VALOREM
+EDF, TOTAL, VALOREM, ALL = 1,2,4,7
+TEST = ALL
 if __name__ == '__main__':
-    if TEST == EDF:
+    if TEST & EDF:
         scene, localisation, meteo = edf_system()
-        results, fresult =  process_light('edf',scene,meteo,mindate = date(2023,10,1,0, localisation=localisation) , 
-                                   maxdate = date(2023,10,1,23,50, localisation=localisation), 
+        results, fresult =  process_light('edf',scene,meteo,
+                                   #mindate = date(2023,10,1,0, localisation=localisation) , 
+                                   #maxdate = date(2023,10,1,23,50, localisation=localisation), 
                                    localisation=localisation,
                                    outdir='result_edf', usecaribu=True)
         fresult.to_csv('edf_result.csv')
-    elif TEST == TOTAL:
+    elif TEST & TOTAL:
         scene, localisation, meteo = total_system()
-        results, fresult =  process_light('total',scene,meteo,mindate = date(2023,4,4,0, localisation=localisation) , 
-                                   maxdate = date(2023,4,4,23,50, localisation=localisation), 
+        results, fresult =  process_light('total',scene,meteo,
+                                   #mindate = date(2023,4,4,0, localisation=localisation) , 
+                                   #maxdate = date(2023,4,4,23,50, localisation=localisation), 
                                    localisation=localisation,
                                    outdir='result_total', usecaribu=True)
         fresult.to_csv('total_result.csv')
-    elif TEST == VALOREM:
+    elif TEST & VALOREM:
         scene, localisation, meteo = valorem_system()
         # print(get_days(meteo))
         # ['2023-06-22', '2023-07-03', '2023-07-14', '2023-09-25', '2023-10-27', '2023-11-05']
-        results, fresult =  process_light('valorem', scene,meteo,localisation=localisation, mindate = date(2023,7,3,0,0, localisation=localisation),
-                                   outdir='result_valorem', usecaribu=True)
+        results, fresult =  process_light('valorem', scene,meteo,localisation=localisation, 
+                                          #mindate = date(2023,7,3,0,0, localisation=localisation),
+                                          outdir='result_valorem', usecaribu=True)
         fresult.to_csv('valorem_result.csv')
 
 
-    print(results)
-    results.plot()
-    pp.show()
+    if TEST != ALL:
+        print(results)
+        results.plot()
+        pp.show()
