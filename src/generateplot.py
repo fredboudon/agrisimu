@@ -116,7 +116,9 @@ def total_system():
 
         data = data.rename(columns={'PAR_ZT':'par',
                                     'PAR':'sensor0'})
-        data['pardiffus'] =  data['par']*data['DHI']/data['GHI']
+        data['par'] =  data['GHI']*1.9
+        data['pardiffus'] =  data['DHI']*1.9
+        #data['pardiffus'] =  data['par']*data['DHI']/data['GHI']
         # convert kW.m-2 to W.m-2
         #data['global_radiation'] *= 1000. 
         del data['Timestamp']
@@ -175,7 +177,8 @@ def valorem_system():
         dates = pandas.to_datetime(dates) #, format='%d/%m/%Y %H:%M')
         data['dhi'] = data['Temoin_GHI'] * data['Temoin_PAR_DHI'] / data['Temoin_PAR']
         # prendre PAR
-        data = data.rename(columns={'Temoin_GHI':'ghi'})
+        data = data.rename(columns={'Temoin_PAR':'par'})
+        data = data.rename(columns={'Temoin_PAR_DHI':'pardiffus'})
         # convert kW.m-2 to W.m-2
         #data['global_radiation'] *= 1000. 
         del data['Date']
@@ -183,7 +186,7 @@ def valorem_system():
         index = pandas.DatetimeIndex(dates).tz_localize(localisation['timezone'])
         data = data.set_index(index)
         print(data)
-        return data[['ghi','dhi']],data[['Panneaux_GHI','Intermediaire_GHI','Interrang_GHI']],None
+        return data[['par','pardiffus']],data[['Panneaux_GHI','Intermediaire_GHI','Interrang_GHI']],None
 
     meteo = read_meteo('Données_rayonnement_3.csv',localisation)
     
