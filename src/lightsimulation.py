@@ -224,7 +224,7 @@ def get_days(df):
     return list(sorted(set(map(lambda d: str(d.date()),df.index.to_pydatetime()))))
 
 EDF, TOTAL, VALOREM, ALL = 1,2,4,7
-TEST = ALL
+TEST = TOTAL
 if __name__ == '__main__':
     if TEST & EDF:
         scene, localisation, meteo = edf_system()
