@@ -15,23 +15,9 @@ from os.path import join
 DEBUG = False
 RESOLUTION = 0.1
 
-localisation={'latitude':43.734286, 'longitude':4.570565, 'timezone': 'Europe/Paris'}
+localisation={'latitude':42.77, 'longitude':2.86, 'timezone': 'Europe/Paris'}
 north = -90
-
-def read_meteo(data_file='weather.txt', localisation = localisation['timezone']):
-    """ reader for mango meteo files """
-    import pandas
-    data = pandas.read_csv(data_file, delimiter = '\t',
-                               usecols=['Time','Global','Diffuse','Temp'], dayfirst=True)
-
-    data = data.rename(columns={'Time':'Time',
-                                 'Global':'global_radiation',
-                                 'Temp':'temperature_air'})
-    # convert kW.m-2 to W.m-2
-    #data['global_radiation'] *= 1000. 
-    #index = pandas.DatetimeIndex(data['date']).tz_localize(localisation)
-    #data = data.set_index(index)
-    return data
+# -90 
 
 
 
@@ -109,7 +95,6 @@ def grid_values(irradiances):
     return pandas.DataFrame({'column':cols,'rows':rows,'irradiance':irr})
 
 
-
 def plantgllight(scene, sun, sky,  view = False):
     from openalea.plantgl.light import scene_irradiance
     tscene, idmap = toPglScene(scene)    
@@ -139,35 +124,59 @@ def process_light(mindate = date(5,1,0), maxdate = date(11, 1,0), usecaribu = Tr
     if outdir and not os.path.exists(outdir):
         os.mkdir(outdir)
 
+    if maxdate is None and mindate != None:
+        if mindate.hour == 0 and mindate.minute == 0:
+            from copy import copy
+            maxdate = date(mindate.year, mindate.month, mindate.day, 23, 59, localisation=localisation)
+        else:
+            maxdate = mindate
+    
+    currentdate = mindate
+
     # read the meteo
-    meteo = read_meteo()
+    meteo,  params = read_meteo( )
 
     # an agrivoltaic scene (generate plot)
-    height = 0.7
-    scene = generate_plots()+ground(height)
+    height = 0.0
+    scene = None
     
     if usecaribu :
         scene = toCaribuScene(scene,OPTPROP)
 
     initdate = date(1,1,0)
 
-    results = []
-    for index, row in meteo.iterrows():
-        time, globalirr, diffuseirr, temperature = row
-        cdate = initdate+datetime.timedelta(seconds=time)
-        if cdate >= mindate and cdate < maxdate:
-            print(time, cdate,globalirr, diffuseirr, temperature)
-            sun, sky= sun_sky_sources(ghi = globalirr, dhi = diffuseirr, dates=cdate, **localisation)
-            if usecaribu :
-                result = caribu(scene, sun, sky, view=view)
+    finalresult = []
+    for (cdate, values), (cdate2, param) in zip(meteo.iterrows(), params.iterrows()):
+        ghi, dhi = values
+        if mindate is None or (cdate >= mindate and cdate < maxdate):
+            if param is None:
+                if scene is None:
+                    scene = generate_plots()+ground(height)
+                    if usecaribu :
+                        scene = toCaribuScene(scene,OPTPROP)
+
             else:
-                result = plantgllight(scene, sun, sky, view=view)
-            _,_,gvalues, sc = result
-            if outdir:
-                gvalues.to_csv(join(outdir,'grid_'+str(height).replace('.','_')+'_'+cdate.strftime('%Y-%m-%d-%H-%M')+'.csv'),sep='\t')
-                if view:
-                    sc.save(join(outdir,'grid_'+str(height).replace('.','_')+'_'+cdate.strftime('%Y-%m-%d-%H-%M')+'.bgeom'))
-            results.append((cdate,gvalues))
+                param = param.tolist()
+                if param != lastparam:
+                    print('Generate scene')
+                    scene = generate_plots(*params)+ground(height)
+                    lastparam = param
+                    if usecaribu :
+                        scene = toCaribuScene(scene,OPTPROP)
+            sun, sky= sun_sky_sources(ghi = ghi, dhi = min(ghi,dhi), dates=cdate, **localisation)
+            if ghi > 0:
+                if usecaribu :
+                    result = caribu(scene, sun, sky, view=view)
+                else:
+                    result = plantgllight(scene, sun, sky, view=view)
+                _,_,gvalues, sc = result
+                if outdir:
+                    gvalues.to_csv(join(outdir,'grid_'+str(height).replace('.','_')+'_'+cdate.strftime('%Y-%m-%d-%H-%M')+'.csv'),sep='\t')
+                    if view:
+                        sc.save(join(outdir,'grid_'+str(height).replace('.','_')+'_'+cdate.strftime('%Y-%m-%d-%H-%M')+'.bgeom'))
+                results.append((cdate,gvalues))                     
+            print(cdate, ghi)
+
     return results
 
 if __name__ == '__main__':
