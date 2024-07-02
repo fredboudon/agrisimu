@@ -30,17 +30,25 @@ def generate_plots(heigth = 1.5, orientation=20, shift = 1.2):
 
     scene = Scene([Shape(panel, id = PANELS) for panel in panelmatrix])
 
-    #outerpole = Cylinder(poleradius, heigth, solid=False)
-    #innerpole = Cylinder(poleradius, heigth+heightdiff, solid=False)
-
-    #outerpoles = [Translated(r,c,0,outerpole) for c in [0,2*width+ricerowwidth] 
-     #          for r in [i*(length+panelinterval) for i in range(nbpanels)]+[i*(length+panelinterval)+length for i in range(nbpanels)]]
-
-    #innerpoles = [Translated(r,c,0,innerpole) for c in [width,width+ricerowwidth] 
-     #          for r in [i*(length+panelinterval) for i in range(nbpanels)]+[i*(length+panelinterval)+length for i in range(nbpanels)]]
-
-    #scene += Scene([Shape(pole, id = POLES) for pole in outerpoles+innerpoles])
     return scene
+
+plotwidth = 1.35
+plotlength = 1.65
+
+def generate_plots2(nb = 5, panelheight = 0.5):
+
+    spacing = plotwidth/nb
+    height = 0.5
+
+    panel = QuadSet([(0,0,height),(plotlength,0,height),(plotlength,0,height+panelheight),(0,0,height+panelheight)], [list(range(4))])
+    panelmatrix = [Translated(0,spacing*i,0,panel) for i in range(nb+1)]
+    scene = Scene([Shape(panel, id = PANELS) for panel in panelmatrix])
+    print('Surface:',surface(scene))
+    borderpanel = QuadSet([(0,0,height),(0,plotwidth,height),(0,plotwidth,height+panelheight),(0,0,height+panelheight)], [list(range(4))])
+    scene += Scene([Shape(borderpanel, id = PANELS),Shape(Translated(plotlength,0,0,borderpanel), id = PANELS)])
+    return scene
+
+
 
 ##### TILES FOR RAY TRACING
 ########### COLORS FOR FLOORS
@@ -48,22 +56,23 @@ ricecol = Material("#88AA59", Color3(80,100,45))
 groundcol = Material("#B68354", Color3(135,100,80))
 sensorcol = Material("#94B5DA", Color3(148,181,218))
 
-tilewidth = 0.2
-tilelength = 1/3.
+tilewidth = 0.075
+tilelength = tilewidth
+decal = 0.6
 tile = QuadSet([(0,0,0),(tilelength,0,0),(tilelength,tilewidth,0),(0,tilewidth,0)], [list(range(4))])
 
 def groundids():
-    return [(col, rank)  for rank in range(15) for col in  [100*i+c for c in range(9) for i in range(nbpanels)]]
+    return [(col, rank)  for rank in range(ceil((plotlength+2*decal)/tilelength)) for col in range(ceil((plotwidth+2*decal)/tilewidth))]
 
 def ground():
-    floor = [Translated(tilelength*(col%100) + 5*(col//100),1.5+tilewidth*rank,0,tile) for col, rank in groundids()]
+    floor = [Translated(tilelength*rank - decal,tilewidth*col-decal,0,tile) for col, rank in groundids()]
     ########### GROUND
     return  Scene([Shape(square, groundcol, SOIL) for square in floor])
 
 
 
 if __name__ == '__main__':
-    Viewer.display(generate_plots())
+    Viewer.display(generate_plots2()+ground())
 
 
 

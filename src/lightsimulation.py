@@ -17,7 +17,7 @@ DEBUG = False
 RESOLUTION = None #0.1
 
 localisation={'latitude':-7.473411, 'longitude':112.462442, 'timezone': 'Asia/Jakarta'}
-north = -180
+north = 0
 
 
 def lightsRepr(sun, sky, dist = 40, spheresize = 0.8):
@@ -112,7 +112,13 @@ def grid_values(irradiances):
     colsrows =  groundids()
     cols = [c for c,r in colsrows]
     rows = [r for c,r in colsrows]
-    return pandas.DataFrame({'column':cols,'rows':rows,'irradiance':irr})
+    return pandas.DataFrame({'column':cols,'row':rows,'irradiance':irr})
+
+def matrix_values(df):
+    res = np.zeros((max(df['row'])+1,max(df['column'])+1))
+    for index, row in df.iterrows():
+        res[int(row['row']),int(row['column'])] = float(row['irradiance'])
+    return res
 
 
 def plantgllight(scene, sun, sky,  view = False):
@@ -150,7 +156,7 @@ def date(month, day, hour, minutes=0, seconds = 0):
 from datetime import timedelta
 
 """ Ne considerez que du '17-May' au '31-Oct' """
-def process_light(heigth=1.2, orientation = 45, shift = 1.2, mindate = date(5,17,0), maxdate = None, timestep = timedelta(days=0, hours = 1, minutes = 0), diffuse = 0, usecaribu = True, view = True, outdir = None):
+def process_light(nb = 5,heigth=0.5,  mindate = date(5,17,0), maxdate = None, timestep = timedelta(days=0, hours = 1, minutes = 0), diffuse = 0, usecaribu = True, view = True, outdir = None):
     if outdir and not os.path.exists(outdir):
         os.mkdir(outdir)
     
@@ -158,7 +164,7 @@ def process_light(heigth=1.2, orientation = 45, shift = 1.2, mindate = date(5,17
         maxdate = mindate
 
     # the scene with the panels
-    scene = generate_plots(heigth, orientation, shift)
+    scene = generate_plots2(nb, heigth)
     scene += ground()
 
     
@@ -179,11 +185,16 @@ def process_light(heigth=1.2, orientation = 45, shift = 1.2, mindate = date(5,17
             else:
                 result = plantgllight(scene, sun, sky, view=view)
             _,_,gvalues, sc = result
-            fname = join(outdir,'grid__'+('CAR' if usecaribu else 'PGL')+'_'+str(heigth).replace('.','_')+'__'+str(orientation)+'__'+currentdate.strftime('%Y-%m-%d-%H-%M')+'_'+str(shift))
+            resarray = matrix_values(gvalues)
+            import matplotlib.pyplot as plt
+            plt.imshow(resarray, cmap='jet',vmin = 0)
+            plt.show(block=False)
+            fname = join(outdir,'grid__'+('CAR' if usecaribu else 'PGL')+'_'+str(int(heigth*100))+'__'+str(nb)+'__'+currentdate.strftime('%Y-%m-%d-%H-%M'))
             if outdir:
                 gvalues.to_csv(fname+'.csv',sep='\t')
                 if view:
                     sc.save(fname+'.bgeom')
+                plt.savefig(fname+'.png')
             results.append((currentdate,gvalues))
             currentdate += timestep
     return results
@@ -191,7 +202,7 @@ def process_light(heigth=1.2, orientation = 45, shift = 1.2, mindate = date(5,17
 if __name__ == '__main__':
     day=1
     month =7
-    results =  process_light(heigth=0.5,orientation=45,mindate = date(month,day,6) , maxdate = date(month,day,17), timestep = timedelta(days=0, hours = 0, minutes = 30), outdir='result', usecaribu=True)
+    results =  process_light(heigth=0.5,mindate = date(month,day,6) , maxdate = date(month,day,17), timestep = timedelta(days=0, hours = 0, minutes = 30), outdir='result', usecaribu=True)
     print(results)
     #process_light(heigth=1,orientation=1,mindate = date(month,day,6) , maxdate = date(month,day,17), outdir='result')
     #process_light(heigth=1.5,orientation=1,mindate = date(month,day,6) , maxdate = date(month,day,17), outdir='result')
