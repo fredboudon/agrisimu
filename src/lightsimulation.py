@@ -156,7 +156,7 @@ def date(month, day, hour, minutes=0, seconds = 0):
 from datetime import timedelta
 
 """ Ne considerez que du '17-May' au '31-Oct' """
-def process_light(nb = 5,heigth=0.5,  mindate = date(5,17,0), maxdate = None, timestep = timedelta(days=0, hours = 1, minutes = 0), diffuse = 0, usecaribu = True, view = True, outdir = None):
+def process_light(nb = 5,panelheight = 0.5, height=0.5,  mindate = date(5,17,0), maxdate = None, timestep = timedelta(days=0, hours = 1, minutes = 0), diffuse = 0, usecaribu = True, view = True, outdir = None):
     if outdir and not os.path.exists(outdir):
         os.mkdir(outdir)
     
@@ -164,7 +164,7 @@ def process_light(nb = 5,heigth=0.5,  mindate = date(5,17,0), maxdate = None, ti
         maxdate = mindate
 
     # the scene with the panels
-    scene = generate_plots2(nb, heigth)
+    scene = generate_plots2(nb, panelheight, height)
     scene += ground()
 
     
@@ -189,7 +189,7 @@ def process_light(nb = 5,heigth=0.5,  mindate = date(5,17,0), maxdate = None, ti
             import matplotlib.pyplot as plt
             plt.imshow(resarray, cmap='jet',vmin = 0)
             plt.show(block=False)
-            fname = join(outdir,'grid__'+('CAR' if usecaribu else 'PGL')+'_'+str(int(heigth*100))+'__'+str(nb)+'__'+currentdate.strftime('%Y-%m-%d-%H-%M'))
+            fname = join(outdir,'grid__'+str(nb)+'_'+str(int(panelheight*100))+'_'+str(int(height*100))+'__'+currentdate.strftime('%Y-%m-%d-%H-%M'))
             if outdir:
                 gvalues.to_csv(fname+'.csv',sep='\t')
                 if view:
@@ -202,7 +202,7 @@ def process_light(nb = 5,heigth=0.5,  mindate = date(5,17,0), maxdate = None, ti
 if __name__ == '__main__':
     day=1
     month =7
-    results =  process_light(heigth=0.5,mindate = date(month,day,6) , maxdate = date(month,day,17), timestep = timedelta(days=0, hours = 0, minutes = 30), outdir='result', usecaribu=True)
+    results =  process_light(height=0.1, panelheight = 0.2, nb = 5, mindate = date(month,day,6) , maxdate = date(month,day,17), timestep = timedelta(days=0, hours = 0, minutes = 20), outdir='result', usecaribu=True)
     print(results)
     #process_light(heigth=1,orientation=1,mindate = date(month,day,6) , maxdate = date(month,day,17), outdir='result')
     #process_light(heigth=1.5,orientation=1,mindate = date(month,day,6) , maxdate = date(month,day,17), outdir='result')

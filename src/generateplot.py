@@ -35,11 +35,9 @@ def generate_plots(heigth = 1.5, orientation=20, shift = 1.2):
 plotwidth = 1.35
 plotlength = 1.65
 
-def generate_plots2(nb = 5, panelheight = 0.5):
+def generate_plots2(nb = 5, panelheight = 0.5, height = 0.5):
 
     spacing = plotwidth/nb
-    height = 0.5
-
     panel = QuadSet([(0,0,height),(plotlength,0,height),(plotlength,0,height+panelheight),(0,0,height+panelheight)], [list(range(4))])
     panelmatrix = [Translated(0,spacing*i,0,panel) for i in range(nb+1)]
     scene = Scene([Shape(panel, id = PANELS) for panel in panelmatrix])
