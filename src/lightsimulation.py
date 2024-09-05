@@ -16,16 +16,27 @@ DEBUG = False
 RESOLUTION = 0.1
 
 localisation={'latitude':42.77, 'longitude':2.86, 'timezone': 'Europe/Paris'}
-north = -90
+north = -39.9
 # -90 
 
+
+def lightsRepr(lights, dist = 40, spheresize = 0.8):
+  import openalea.plantgl.all as pgl
+  from openalea.plantgl.light import azel2vect
+  from openalea.plantgl.scenegraph.colormap import PglMaterialMap
+  s = pgl.Scene()
+  mmax = max([i for i, pos in lights])
+  cmap = PglMaterialMap(min(0,min([i for i, pos in lights])),mmax)
+  for i, dir in lights:
+    if i > 0:
+        s += pgl.Shape(pgl.Translated(-pgl.Vector3(dir)*dist,pgl.Sphere(spheresize*(0.5+i/(2*mmax)))),cmap(i))
+  return s
 
 
 def toCaribuScene(scene, opt_prop) :
     from alinea.caribu.CaribuScene import CaribuScene
     t = time.time()
     print ('Convert scene for caribu')
-    nscene = Scene()
     cs = CaribuScene(scene, opt=opt_prop, scene_unit='m', debug = DEBUG)
     print('done in', time.time() - t)
     return cs
@@ -47,13 +58,14 @@ def caribu(scene, sun = None, sky = None, view = False, debug = False):
     #raw, agg = scene.run(direct=False, infinite = True, split_face = True, d_sphere = D_SPHERE)
     raw, agg = scene.run(direct=True, infinite = False, split_face = False, screen_resolution=RESOLUTION)
     print('made in', time.time() - t)
-    sc = None
+    sc = Scene()
     if view : 
         Ei = raw['PAR']['Ei']
         maxei = max([max(v) for pid,v in Ei.items()])
         sc, _ = scene.plot(Ei, minval=0, maxval=maxei)
         cm = PglMaterialMap(0, maxei)
         sc += cm.pglrepr()
+        sc += lightsRepr(light)
     return raw, agg, grid_values(raw['PAR']['Ei'][SOIL]), sc
 
 def mplot( scene, scproperty, minval = None, display = True):
@@ -116,18 +128,19 @@ def plantgllight(scene, sun, sky,  view = False):
     return defm, defm.groupby('type').sum(), grid_values(gridirradiances)
 
 tz = pytz.timezone(localisation['timezone'])
-def date(month, day, hour):
-    return pandas.Timestamp(datetime.datetime(2023, month, day, hour, 0, 0), tz=tz)
+def sdate(month, day, hour):
+    return pandas.Timestamp(datetime.datetime(2023, month, day, hour, 0, 0)) #, tz=tz)
 
 """ Ne considerez que du '17-May' au '31-Oct' """
-def process_light(mindate = date(5,1,0), maxdate = date(11, 1,0), usecaribu = True, view = True, outdir = None):
+def process_light(mindate = sdate(5,1,0), maxdate = None, usecaribu = True, view = True, outdir = None):
+    from datetime import date
     if outdir and not os.path.exists(outdir):
         os.mkdir(outdir)
 
     if maxdate is None and mindate != None:
         if mindate.hour == 0 and mindate.minute == 0:
             from copy import copy
-            maxdate = date(mindate.year, mindate.month, mindate.day, 23, 59, localisation=localisation)
+            maxdate = date(mindate.year, mindate.month, mindate.day, 23, 59)
         else:
             maxdate = mindate
     
@@ -136,17 +149,26 @@ def process_light(mindate = date(5,1,0), maxdate = date(11, 1,0), usecaribu = Tr
     # read the meteo
     meteo,  params = read_meteo( )
 
+    if params is None:
+        class NoneIter:
+            def __init__(self):
+                pass
+            def __iter__(self):
+                return self
+            def __next__(self):
+                return None, None
+        paramiter = NoneIter()
+    else:
+        paramiter = params.iterrows()
+
     # an agrivoltaic scene (generate plot)
     height = 0.0
     scene = None
     
-    if usecaribu :
-        scene = toCaribuScene(scene,OPTPROP)
+    initdate = sdate(1,1,0)
 
-    initdate = date(1,1,0)
-
-    finalresult = []
-    for (cdate, values), (cdate2, param) in zip(meteo.iterrows(), params.iterrows()):
+    results = []
+    for (cdate, values), (cdate2, param) in zip(meteo.iterrows(), paramiter):
         ghi, dhi = values
         if mindate is None or (cdate >= mindate and cdate < maxdate):
             if param is None:
@@ -181,6 +203,6 @@ def process_light(mindate = date(5,1,0), maxdate = date(11, 1,0), usecaribu = Tr
 
 if __name__ == '__main__':
     # date(month,day,hour)
-    results = process_light(date(5,1,0), date(5,2,0), outdir='result', view=True)
+    results = process_light(sdate(8,15,14), sdate(8,15,15), outdir='result', view=True)
     print(results)
 

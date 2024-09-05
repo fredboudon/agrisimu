@@ -14,7 +14,7 @@ interpanel = 8.000
 interrow = 5.500
 heigth = 5.755
 
-def generate_plots(angle = 20):
+def generate_plots(angle = 0):
     panel = AxisRotated((0,1,0),radians(angle),QuadSet([(-w/2,-l/2,0),(-w/2,l/2,0),(w/2,l/2,0),(w/2,-l/2,0)], [list(range(4))]))
 
 
@@ -53,24 +53,22 @@ def generate_plots(angle = 20):
     #scene += Scene([Shape(pole, id = POLES) for pole in borderpoles+leftcentralpoles+rightcentralpoles])
     return scene
 
-def read_meteo(data_file='angle_PAR_20240608.csv', localisation = None):
-    """ reader for mango meteo files """
+def read_meteo(data_file='AOS-872 - PRATX RIVESALTES 1-23_07_2023-23_07_2024-Affichage perso.csv', localisation = None):
+    """ reader for meteo files """
     import pandas
-    data = pandas.read_csv(data_file, delimiter = ';', usecols=['_time','Capteur PAR ext','angle'], dayfirst=True)
-    dates = pandas.to_datetime(data['_time']) #, format='%d/%m/%Y %H:%M')
+    cols = ['date','Solargis/diffuse_horizontal_irradiation','Solargis/global_horizontal_irradiation']
+    data = pandas.read_csv(data_file, delimiter = ';', usecols=cols, dayfirst=True)
+    dates = pandas.to_datetime(data['date']) #, format='%d/%m/%Y %H:%M')
 
-    data = data.rename(columns={'Capteur PAR ext':'par',
-                                #    'Ray_PAR_Diffus_Control':'pardiffus',
-                                #    'Ray_PAR_APV_1':'sensor0'
-                                'angle':'Tracking_angle'
+    data = data.rename(columns={'Solargis/diffuse_horizontal_irradiation':'pardiffus',
+                                'Solargis/global_horizontal_irradiation':'par',
                                 })
-    del data['_time']
+    del data['date']
     index = pandas.DatetimeIndex(dates)
     if localisation:
         index = index.tz_localize(localisation['timezone'])
     data = data.set_index(index)
-    #return data[['par','pardiffus']],data[['sensor0']],data[['Tracking_angles_alpha']]
-    return data[['par']],data[['Tracking_angle']]
+    return data[['par','pardiffus']], None
 
 
 ##### TILES FOR RAY TRACING
