@@ -16,7 +16,7 @@ DEBUG = False
 RESOLUTION = 0.1
 
 localisation={'latitude':42.77, 'longitude':2.86, 'timezone': 'Europe/Paris'}
-north = -39.9
+north = -90-39.9
 # -90 
 
 
@@ -129,11 +129,11 @@ def plantgllight(scene, sun, sky,  view = False):
 
 tz = pytz.timezone(localisation['timezone'])
 def sdate(month, day, hour):
-    return pandas.Timestamp(datetime.datetime(2023, month, day, hour, 0, 0)) #, tz=tz)
+    return pandas.Timestamp(datetime.datetime(2023, month, day, hour, 0, 0), tz=tz)
 
 """ Ne considerez que du '17-May' au '31-Oct' """
 def process_light(mindate = sdate(5,1,0), maxdate = None, usecaribu = True, view = True, outdir = None):
-    from datetime import date
+    from datetime import date,timedelta
     if outdir and not os.path.exists(outdir):
         os.mkdir(outdir)
 
@@ -142,12 +142,12 @@ def process_light(mindate = sdate(5,1,0), maxdate = None, usecaribu = True, view
             from copy import copy
             maxdate = date(mindate.year, mindate.month, mindate.day, 23, 59)
         else:
-            maxdate = mindate
+            maxdate = mindate+timedelta(hours=1)
     
     currentdate = mindate
 
     # read the meteo
-    meteo,  params = read_meteo( )
+    meteo,  params = read_meteo( localisation=localisation)
 
     if params is None:
         class NoneIter:
@@ -164,6 +164,7 @@ def process_light(mindate = sdate(5,1,0), maxdate = None, usecaribu = True, view
     # an agrivoltaic scene (generate plot)
     height = 0.0
     scene = None
+    lastparam = None
     
     initdate = sdate(1,1,0)
 
@@ -203,6 +204,6 @@ def process_light(mindate = sdate(5,1,0), maxdate = None, usecaribu = True, view
 
 if __name__ == '__main__':
     # date(month,day,hour)
-    results = process_light(sdate(8,15,14), sdate(8,15,15), outdir='result', view=True)
+    results = process_light(sdate(8,15,12),  outdir='result', view=True)
     print(results)
 
