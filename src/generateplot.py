@@ -14,8 +14,10 @@ interpanel = 8.000
 interrow = 5.500
 heigth = 5.755
 
+
 def generate_plots(angle = 0):
     print('Angle:', angle)
+ 
     panel = AxisRotated((0,1,0),radians(angle),QuadSet([(-w/2,-l/2,0),(-w/2,l/2,0),(w/2,l/2,0),(w/2,-l/2,0)], [list(range(4))]))
 
 
@@ -52,7 +54,18 @@ def generate_plots(angle = 0):
     #                    AxisRotated(Vector3.OX, radians(-rightangle), centralpole)] for i in range(5)]
 
     #scene += Scene([Shape(pole, id = POLES) for pole in borderpoles+leftcentralpoles+rightcentralpoles])
+
     return scene
+
+
+def toCaribuScene(scene, opt_prop) :
+    from alinea.caribu.CaribuScene import CaribuScene
+    import time
+    t = time.time()
+    print ('Convert scene for caribu')
+    cs = CaribuScene(scene, opt=opt_prop, scene_unit='m')
+    print('done in', time.time() - t)
+    return cs
 
 def read_meteo(data_file='AOS-872 - PRATX RIVESALTES 1-23_07_2023-23_07_2024_&_ANGLES.csv', localisation = None):
     """ reader for meteo files """
@@ -62,7 +75,6 @@ def read_meteo(data_file='AOS-872 - PRATX RIVESALTES 1-23_07_2023-23_07_2024_&_A
     from locale import atof
     cols = ['date','Solargis/diffuse_horizontal_irradiation','Solargis/global_horizontal_irradiation','Angle']
     data = pandas.read_csv(data_file, delimiter = ';', usecols=cols)
-    print(data)
     dates = pandas.to_datetime(data['date'], dayfirst=True) #, format='%d/%m/%Y %H:%M')
 
     data = data.rename(columns={'Solargis/diffuse_horizontal_irradiation':'pardiffus',
@@ -73,7 +85,6 @@ def read_meteo(data_file='AOS-872 - PRATX RIVESALTES 1-23_07_2023-23_07_2024_&_A
     #if localisation:
     #    index = index.tz_localize(localisation['timezone'])
     data = data.set_index(index)
-    print(data[['Angle']].dtypes)
     return data[['par','pardiffus']], data[['Angle']]
 
 
@@ -92,6 +103,17 @@ def ground(height = 0):
     floor = [Translated(0.5*col-interrow*6,0.5*rank-interpanel*4,height,tile) for col, rank in groundids()]
     ########### GROUND
     return  Scene([Shape(square, groundcol, SOIL) for square in floor])
+
+
+cache = {}
+def generate_scene(angle = 0, height = 0, usecaribu = True):
+    if angle in cache : return cache[angle]
+    scene = generate_plots(angle)+ground(height)
+    if usecaribu :
+        scene = toCaribuScene(scene,OPTPROP)
+    cache[angle] = scene
+    return scene
+
 
 if __name__ == '__main__':
     Viewer.display(generate_plots()+ground())

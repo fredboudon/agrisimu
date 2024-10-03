@@ -7,7 +7,7 @@ from alinea.astk.sun_and_sky import sun_sky_sources, sun_sources
 import os, sys
 
 from importlib import reload
-import generateplot; reload(generateplot)
+#import generateplot; reload(generateplot)
 from generateplot import *
 import time, datetime, pytz
 from os.path import join
@@ -16,7 +16,7 @@ DEBUG = False
 RESOLUTION = 0.1
 
 localisation={'latitude':42.77, 'longitude':2.86, 'timezone': 'Europe/Paris'}
-north = -90-39.9
+north = -(90+39.9)
 # -90 
 
 
@@ -33,13 +33,7 @@ def lightsRepr(lights, dist = 40, spheresize = 0.8):
   return s
 
 
-def toCaribuScene(scene, opt_prop) :
-    from alinea.caribu.CaribuScene import CaribuScene
-    t = time.time()
-    print ('Convert scene for caribu')
-    cs = CaribuScene(scene, opt=opt_prop, scene_unit='m', debug = DEBUG)
-    print('done in', time.time() - t)
-    return cs
+
 
 # on considere le nord en Y.
 def caribu(scene, sun = None, sky = None, view = False, debug = False):
@@ -174,18 +168,13 @@ def process_light(mindate = sdate(5,1,0), maxdate = None, usecaribu = True, view
         if mindate is None or (cdate >= mindate and cdate < maxdate):
             if param is None:
                 if scene is None:
-                    scene = generate_plots()+ground(height)
-                    if usecaribu :
-                        scene = toCaribuScene(scene,OPTPROP)
-
+                    scene = generate_scene(0, height, usecaribu)
             else:
                 param = param.tolist()
                 if param != lastparam:
                     print('Generate scene')
-                    scene = generate_plots(*params)+ground(height)
+                    scene = generate_scene(*param, height, usecaribu)
                     lastparam = param
-                    if usecaribu :
-                        scene = toCaribuScene(scene,OPTPROP)
             sun, sky= sun_sky_sources(ghi = ghi, dhi = min(ghi,dhi), dates=cdate, **localisation)
             if ghi > 0:
                 if usecaribu :
