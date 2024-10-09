@@ -1,0 +1,23 @@
+name: agri
+channels:
+  - fredboudon
+  - openalea3
+  - conda-forge
+dependencies:
+  - openalea.plantgl=3.21.*
+  - alinea.caribu
+  - alinea.astk  
+  - jupyterlab>=3.0.16
+  - jupyterlab_widgets
+  - notebook
+  - ipywidgets
+  - ipython
+  - matplotlib
+  - numpy
+  - pandas
+  - scipy
+  - pycairo
+  - netCDF4
+  - pip
+  - pip:
+    - pgljupyter==2.0.0
