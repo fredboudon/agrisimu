@@ -18,7 +18,7 @@ heigth = 5.755
 def generate_plots(angle = 0):
     print('Angle:', angle)
  
-    panel = AxisRotated((0,1,0),radians(angle),QuadSet([(-w/2,-l/2,0),(-w/2,l/2,0),(w/2,l/2,0),(w/2,-l/2,0)], [list(range(4))]))
+    panel = AxisRotated((0,1,0),-radians(angle),QuadSet([(-w/2,-l/2,0),(-w/2,l/2,0),(w/2,l/2,0),(w/2,-l/2,0)], [list(range(4))]))
 
 
     row3 = [Translated(0, interpanel*(i-3.5),  0, panel) for i in range(3)] # 2 
