@@ -1,12 +1,13 @@
 from openalea.plantgl.all import *
 from math import *
 
-PANELS, POLES, WIRES, SOIL, SENSORS = 1,2,3,4,5
+PANELS, POLES, WIRES, SOIL, SENSORS, ENV = 1,2,3,4,5,6
 # Reflectance_Up, Transmittance_Up, Reflectance_Down, Transmittance_Down
 OPTPROP = { 'PAR' :{ PANELS : (0.04,0.0,0.04,0.00), 
                      POLES  : (0.04,0.00,0.04,0.00),
                      WIRES  : (0.04,0.00,0.04,0.00),
-                     SOIL   : (0.04,0.00,0.04,0.00)
+                     SOIL   : (0.04,0.00,0.04,0.00),
+                     ENV   : (0.04,0.00,0.04,0.00)
                      }}
 
 l,w  = 7.326, 2.094
@@ -54,6 +55,16 @@ def generate_plots(angle = 0):
     #                    AxisRotated(Vector3.OX, radians(-rightangle), centralpole)] for i in range(5)]
 
     #scene += Scene([Shape(pole, id = POLES) for pole in borderpoles+leftcentralpoles+rightcentralpoles])
+
+    # borders
+    borderWest = QuadSet([(-35+interrow*1.5,-32,0),(-35-interrow*3,32,0),(-35-interrow*3,32,7),(-35+interrow*1.5,-32,7)],[list(range(4))])
+    scene += Shape(borderWest, id = ENV)
+
+    borderEast = QuadSet([(27.5+interrow*1.5,-32,0),(27.5+interrow*1.5,32,0),(27.5+interrow*1.5,32,3.5),(27.5+interrow*1.5,-32,3.5)],[list(range(4))])
+    scene += Shape(borderEast, id = ENV)
+
+    borderNorth = QuadSet([(27.5+interrow*1.5,34,0),(27.5+interrow*(-6),34,0),(27.5+interrow*(-6),34,2),(27.5+interrow*1.5,34,2)],[list(range(4))])
+    scene += Shape(borderNorth, id = ENV)
 
     return scene
 

@@ -98,8 +98,14 @@ def grid_values(irradiances):
     colsrows =  groundids()
     cols = [c for c,r in colsrows]
     rows = [r for c,r in colsrows]
-    return pandas.DataFrame({'column':cols,'rows':rows,'irradiance':irr})
+    return pandas.DataFrame({'column':cols,'row':rows,'irradiance':irr})
 
+def matrix_values(df):
+    import numpy as np
+    res = np.zeros((max(df['row'])+1,max(df['column'])+1))
+    for index, row in df.iterrows():
+        res[int(row['row']),int(row['column'])] = float(row['irradiance'])
+    return res
 
 def plantgllight(scene, sun, sky,  view = False):
     from openalea.plantgl.light import scene_irradiance
@@ -126,7 +132,7 @@ def sdate(month, day, hour):
     return pandas.Timestamp(datetime.datetime(2023, month, day, hour, 0, 0), tz=tz)
 
 """ Ne considerez que du '17-May' au '31-Oct' """
-def process_light(mindate = sdate(5,1,0), maxdate = None, usecaribu = True, view = True, outdir = None):
+def process_light(mindate = sdate(5,1,0), maxdate = None, height = 0.0, usecaribu = True, view = True, outdir = None):
     from datetime import date,timedelta
     if outdir and not os.path.exists(outdir):
         os.mkdir(outdir)
@@ -156,7 +162,7 @@ def process_light(mindate = sdate(5,1,0), maxdate = None, usecaribu = True, view
         paramiter = params.iterrows()
 
     # an agrivoltaic scene (generate plot)
-    height = 0.0
+    
     scene = None
     lastparam = None
     
@@ -183,9 +189,15 @@ def process_light(mindate = sdate(5,1,0), maxdate = None, usecaribu = True, view
                     result = plantgllight(scene, sun, sky, view=view)
                 _,_,gvalues, sc = result
                 if outdir:
-                    gvalues.to_csv(join(outdir,'grid_'+str(height).replace('.','_')+'_'+cdate.strftime('%Y-%m-%d-%H-%M')+'.csv'),sep='\t')
+                    fname = join(outdir,'grid_'+str(height).replace('.','_')+'_'+cdate.strftime('%Y-%m-%d-%H-%M'))
+                    gvalues.to_csv(fname+'.csv',sep='\t')
+                    resarray = matrix_values(gvalues)
+                    import matplotlib.pyplot as plt
+                    plt.imshow(resarray, cmap='jet',vmin = 0, origin='lower')
+                    plt.show(block=False)
+                    plt.savefig(fname+'.png')
                     if view:
-                        sc.save(join(outdir,'grid_'+str(height).replace('.','_')+'_'+cdate.strftime('%Y-%m-%d-%H-%M')+'.bgeom'))
+                        sc.save(fname+'.bgeom')
                 results.append((cdate,gvalues))                     
             print(cdate, ghi)
 
@@ -193,6 +205,5 @@ def process_light(mindate = sdate(5,1,0), maxdate = None, usecaribu = True, view
 
 if __name__ == '__main__':
     # date(month,day,hour)
-    results = process_light(sdate(8,15,12),  outdir='result', view=True)
+    results = process_light(sdate(12,15,16), height = 2.5,  outdir='result', view=True)
     print(results)
-
