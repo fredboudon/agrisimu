@@ -4,6 +4,7 @@ channels:
   - openalea3
   - conda-forge
 dependencies:
+  - openalea.lpy=3.15.*
   - openalea.plantgl=3.21.*
   - alinea.caribu
   - alinea.astk  
