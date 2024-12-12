@@ -118,13 +118,13 @@ def ground(height = 0):
 
 cache = {}
 def generate_scene(angle = 0, height = 0, usecaribu = True):
-    if angle in cache : return cache[angle]
+    if (angle, heigth, usecaribu) in cache : return cache[(angle, heigth, usecaribu)]
     scene = generate_plots(angle)+ground(height)
     if usecaribu :
         scene = toCaribuScene(scene,OPTPROP)
-    cache[angle] = scene
+    cache[(angle, heigth, usecaribu)] = scene
     return scene
 
 
 if __name__ == '__main__':
-    Viewer.display(generate_plots()+ground())
+    Viewer.display(generate_scene(30,2.5,usecaribu=False))
