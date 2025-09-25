@@ -142,7 +142,7 @@ def process_light(mindate = date(5,1,0), maxdate = date(11, 1,0), usecaribu = Tr
     meteo = read_meteo()
 
     # an agrivoltaic scene (generate plot)
-    height = 0.7
+    height = 0.5
     scene = generate_plots()+ground(height)
     
     if usecaribu :
@@ -157,6 +157,7 @@ def process_light(mindate = date(5,1,0), maxdate = date(11, 1,0), usecaribu = Tr
         if cdate >= mindate and cdate < maxdate:
             print(time, cdate,globalirr, diffuseirr, temperature)
             sun, sky= sun_sky_sources(ghi = globalirr, dhi = diffuseirr, dates=cdate, **localisation)
+            # dhi=none if no diffuse data
             if usecaribu :
                 result = caribu(scene, sun, sky, view=view)
             else:
@@ -169,6 +170,6 @@ def process_light(mindate = date(5,1,0), maxdate = date(11, 1,0), usecaribu = Tr
 
 if __name__ == '__main__':
     # date(month,day,hour)
-    results = process_light(date(5,1,0), date(5,2,0), outdir='result', view=False)
+    results = process_light(date(11,1,0), date(11,3,0), outdir='result', view=False)
     print(results)
 
