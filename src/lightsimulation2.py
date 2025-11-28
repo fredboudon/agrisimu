@@ -37,15 +37,12 @@ def read_meteo(data_file='weather.txt', localisation = localisation['timezone'])
 
 
 def format_values(irradiances):
-    irradiances = irradiances[irradiances.index >= IDDECAL]
-    rowcol = []
-    for shapeid, row  in irradiances.iterrows():
-        rowcol.append(id2position(shapeid))
-    cols, rows = zip(*rowcol)
-    irradiances.insert(0,'row', rows)
-    irradiances.insert(1,'column', cols)
+    rows = {}
+    cols = {}
+    for id, irr  in irradiances.items():
+        rows[id], cols[id] = id2position(id)
+    irradiances = pandas.DataFrame({'row':rows, 'column':cols, 'irradiance':irradiances})
     irradiances = irradiances.sort_values(['column','row'])
-    irradiances = irradiances.reset_index(drop=True)
 
     return irradiances
 
@@ -77,35 +74,34 @@ def process_light(mindate = date(5,1,0), maxdate = date(11, 1,0), view = True, o
 
     # an agrivoltaic scene (generate plot)
     height = 0.0
-    scene = generate_plots()+sensorgeometry(height)
+    scene = generate_plots()
     #scene = ground(height)
     
     initdate = date(1,1,0)
 
     l = LightEstimator(scene)
     l.localize(name = 'Camargue', **localisation)
-    l.add_sky(1)
-    l.precompute_lights(type='SKY')
-    print('Compute diffuse irradiance map...')
-    # diffuse_irradiance = l(method=eTriangleProjection, primitive=eShapeBased)
-    #print(diffuse_irradiance)
+    for sensorid, position in sensorpositions(height):
+        print('sensor', sensorid)
+        l.add_sensor(sensorid, position)
+        l.sensors[sensorid].compute()
+        #l.sensors[sensorid].view()
+    print('Added', len(l.sensors), 'sensors')
 
     results = []
     for index, row in meteo.iterrows():
         time, globalirr, diffuseirr, temperature = row
         cdate = initdate+datetime.timedelta(seconds=time)
         if cdate >= mindate and cdate < maxdate and globalirr > 0:
+            l.clear_lights()
             print(time, cdate, globalirr, diffuseirr, temperature)
-            l.add_sun_sky(dates = [cdate], ghi = globalirr, dhi = diffuseirr)
-            #print('Lights', l.lights)
-            #result = l( primitive=eShapeBased, screenresolution=RESOLUTION)
-            result = l(method=eTriangleProjection, primitive=eShapeBased)
-            print(result)
+            l.add_astk_sun_sky(dates = [cdate], ghi = globalirr, dhi = diffuseirr)
+            result = l.estimate_sensors()
             result = format_values(result)
             result['TrIrradiance'] = result['irradiance']/globalirr
 
             if outdir:
-                fname = join(outdir,'simulation_'+str(height).replace('.','_')+'_'+cdate.strftime('%Y-%m-%d-%H-%M'))
+                fname = join(outdir,'sensors_'+str(height).replace('.','_')+'_'+cdate.strftime('%Y-%m-%d-%H-%M'))
                 result.to_csv(fname+'.csv',sep='\t')
                 toimage(matrix_values(result, property='irradiance'), fname=fname+'_irradiancemap.png')
                 #toimage(matrix_values(result, property='TrIrradiance'), fname=fname+'_TrIrradiancemap.png')
@@ -115,13 +111,15 @@ def process_light(mindate = date(5,1,0), maxdate = date(11, 1,0), view = True, o
                     plt.savefig(fname+'_skymap.png')
                     plt.close()
                 if view:
-                    l.scenerepr()[0].save(fname+'.bgeom')
-            print(result)
+                    (l.sensors_repr(size=0.5)[0]+l.scene).save(fname+'.bgeom')
+                    #l.plot(sensorsize=0.5)
             results.append((cdate,result))
     return results
 
 if __name__ == '__main__':
     # date(month,day,hour)
     results = process_light(date(5,1,0), date(5,2,0), outdir='result', view=True)
+    results = process_light( outdir='result', view=True)
+    #results = process_light(date(5,1,12), date(5,1,13), outdir='result', view=True)
     print(results)
 

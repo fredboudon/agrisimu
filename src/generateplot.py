@@ -3,11 +3,6 @@ from math import *
 
 PANELS, POLES, WIRES, SOIL, SENSORS = 1,2,3,4,5
 # Reflectance_Up, Transmittance_Up, Reflectance_Down, Transmittance_Down
-OPTPROP = { 'PAR' :{ PANELS : (0.04,0.0,0.04,0.00), 
-                     POLES  : (0.04,0.00,0.04,0.00),
-                     WIRES  : (0.04,0.00,0.04,0.00),
-                     SOIL   : (0.04,0.00,0.04,0.00)
-                     }}
 
 
 def generate_plots():
@@ -55,28 +50,39 @@ def generate_plots():
 ricecol = Material("#88AA59", Color3(80,100,45))
 groundcol = Material("#B68354", Color3(135,100,80))
 sensorcol = Material("#94B5DA", Color3(148,181,218))
-tile = QuadSet([(0,0,0),(0.5,0,0),(0.5,0.5,0),(0,0.5,0)], [list(range(4))])
 
-def groundids():
-    return [(col, rank)  for rank in range(30) for col in range(100)]
+NBCOL = 100
+NBLIG = 30
+MAPLENGTH = 50.0  # m
+MAPWIDTH = 15.0   # m
 
-def ground(height = 0):
-    floor = [Translated(0.5*col,0.5*rank,height,tile) for col, rank in groundids()]
+def sensorsids():
+    return [(col, rank)  for rank in range(NBLIG) for col in range(NBCOL)]
+
+IDDECALPOWER = 4
+IDDECAL = pow(10, IDDECALPOWER)
+
+def position2id(col, rank):
+    return int(rank*pow(10, IDDECALPOWER*2) + col*IDDECAL)
+
+def id2position(id):
+    col = (id // IDDECAL) % IDDECAL
+    rank = id // pow(10,IDDECALPOWER*2)
+    return int(col), int(rank)
+
+def sensorpositions(height = 0):
+    WCOL = MAPLENGTH / NBCOL
+    WROW = MAPWIDTH / NBLIG
+    return [(position2id(col, rank),(WCOL*col,WROW*rank,height)) for col, rank in sensorsids()]
+
+def sensorgeometry(height = 0):
+    WCOL = MAPLENGTH / NBCOL
+    WROW = MAPWIDTH / NBLIG
+    tile = QuadSet([(-WCOL/2,0,0),(WCOL/2,0,0),(WCOL/2,WROW,0),(-WCOL/2,WROW,0)], [list(range(4))])
+    floor = [Shape(Translated(position,tile), groundcol, id) for id, position in sensorpositions(height)]
     ########### GROUND
-    return  Scene([Shape(square, groundcol, SOIL) for square in floor])
+    return  Scene(floor)
 
-def ricesensors(height = 0.7):
-    floor = [Translated(0.5*col,0.5*rank,0,tile) for col, rank in groundids()]
-    ########### CANOPY HEIGHT
-    floorrice = Translated(0,0,height,floor)
-    rice = Shape(floorrice, ricecol, SENSORS)
-    return Scene(rice)
-
-def sensors2M(height = 2):
-    ########### 2M HEIGHT : ON FIELD SENSORS
-    floorsensor = Translated(0,0,2.0,floor)
-    sensor = Shape(floorsensor, sensorcol, SENSORS)    
-    return Scene(sensor)
 
 if __name__ == '__main__':
     Viewer.display(generate_plots())
