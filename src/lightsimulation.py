@@ -61,13 +61,14 @@ def caribu(scene, sun = None, sky = None, view = False, debug = False):
     #raw, agg = scene.run(direct=False, infinite = True, split_face = True, d_sphere = D_SPHERE)
     raw, agg = scene.run(direct=True, infinite = False, split_face = False, screen_resolution=RESOLUTION)
     print('made in', time.time() - t)
+    sc = None
     if view : 
         Ei = raw['PAR']['Ei']
         maxei = max([max(v) for pid,v in Ei.items()])
-        scene.plot(Ei, minval=0, maxval=maxei)
+        sc, _ = scene.plot(Ei, minval=0, maxval=maxei)
         cm = PglMaterialMap(0, maxei)
-        Viewer.add(cm.pglrepr())
-    return raw, agg, grid_values(raw['PAR']['Ei'][SOIL])
+        sc += cm.pglrepr()
+    return raw, agg, grid_values(raw['PAR']['Ei'][SOIL]), sc
 
 def mplot( scene, scproperty, minval = None, display = True):
     from openalea.plantgl.scenegraph import Scene, Shape
@@ -162,9 +163,11 @@ def process_light(mindate = date(5,1,0), maxdate = date(11, 1,0), usecaribu = Tr
                 result = caribu(scene, sun, sky, view=view)
             else:
                 result = plantgllight(scene, sun, sky, view=view)
-            _,_,gvalues = result
+            _,_,gvalues, sc = result
             if outdir:
                 gvalues.to_csv(join(outdir,'grid_'+str(height).replace('.','_')+'_'+cdate.strftime('%Y-%m-%d-%H-%M')+'.csv'),sep='\t')
+                if view:
+                    sc.save(join(outdir,'grid_'+str(height).replace('.','_')+'_'+cdate.strftime('%Y-%m-%d-%H-%M')+'.bgeom'))
             results.append((cdate,gvalues))
     return results
 
