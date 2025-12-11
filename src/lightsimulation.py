@@ -68,27 +68,45 @@ def date(month, day, hour):
     return pandas.Timestamp(datetime.datetime(2023, month, day, hour, 0, 0), tz=tz)
 
 """ Ne considerez que du '17-May' au '31-Oct' """
-def process_light(mindate = date(5,1,0), maxdate = date(11, 1,0), view = True, outdir = None):
+def process_light(mindate = date(5,1,0), maxdate = date(11, 1,0), meteofile = 'weather.txt', sensorheight = 0.0, view = True, outdir = 'result'):
+    """
+    Process light simulation for an agrivoltaic scene over a specified date range.
+    Simulates solar irradiance and sky conditions based on meteorological data,
+    computing light distribution across sensor geometry for each timestep.
+    Args:
+        mindate (date): Minimum date for simulation (default: date(5,1,0) - May 1st).
+        maxdate (date): Maximum date for simulation (default: date(11,1,0) - November 1st).
+        meteofile (str): Path to meteorological data file (default: 'weather.txt').
+        sensorheight (float): Height of sensor above ground level in meters (default: 0.0).
+        view (bool): Whether to save 3D scene representation (default: True).
+        outdir (str): Output directory for results (default: 'result'). If None, results are returned in memory.
+    Returns:
+        list: If outdir is None, returns list of tuples (cdate, result) containing simulation results.
+              If outdir is specified, returns empty list and saves results to CSV and image files.
+    Notes:
+        - Creates output directory if it does not exist.
+        - Skips simulation for timesteps where results already exist.
+        - Generates irradiance maps and sky maps as PNG images.
+        - Computes transmitted irradiance as a fraction of global horizontal irradiance.
+        - Only processes timesteps with positive global irradiance values.
+    """
     if outdir and not os.path.exists(outdir):
         os.mkdir(outdir)
 
     # read the meteo
-    meteo = read_meteo()
+    meteo = read_meteo(meteofile)
 
     # an agrivoltaic scene (generate plot)
-    height = 0.0
-    scene = generate_plots()+sensorgeometry(height)
-    #scene = ground(height)
+    scene = generate_plots()+sensorgeometry(sensorheight)
     
     initdate = date(1,1,0)
 
     l = LightEstimator(scene)
     l.localize(name = 'Camargue', **localisation)
+
+    print('Set diffuse irradiance map as precomputed...')
     l.add_sky(1)
     l.precompute_lights(type='SKY')
-    print('Compute diffuse irradiance map...')
-    # diffuse_irradiance = l(method=eTriangleProjection, primitive=eShapeBased)
-    #print(diffuse_irradiance)
 
     results = []
     for index, row in meteo.iterrows():
@@ -96,32 +114,34 @@ def process_light(mindate = date(5,1,0), maxdate = date(11, 1,0), view = True, o
         cdate = initdate+datetime.timedelta(seconds=time)
         if cdate >= mindate and cdate < maxdate and globalirr > 0:
             print(time, cdate, globalirr, diffuseirr, temperature)
+            l.clear_lights()
             l.add_sun_sky(dates = [cdate], ghi = globalirr, dhi = diffuseirr)
-            #print('Lights', l.lights)
-            #result = l( primitive=eShapeBased, screenresolution=RESOLUTION)
+
+            fname = join(outdir,'simulation_'+str(sensorheight).replace('.','_')+'_'+cdate.strftime('%Y-%m-%d-%H-%M'))
+            if os.path.exists(fname+'.csv'):
+                results.append((cdate,fname+'.csv'))
+                print('  already done, skip')
+                continue
             result = l(method=eTriangleProjection, primitive=eShapeBased)
-            print(result)
             result = format_values(result)
             result['TrIrradiance'] = result['irradiance']/globalirr
 
             if outdir:
-                fname = join(outdir,'simulation_'+str(height).replace('.','_')+'_'+cdate.strftime('%Y-%m-%d-%H-%M'))
                 result.to_csv(fname+'.csv',sep='\t')
-                toimage(matrix_values(result, property='irradiance'), fname=fname+'_irradiancemap.png')
-                #toimage(matrix_values(result, property='TrIrradiance'), fname=fname+'_TrIrradiancemap.png')
-                if len(l.lights) > 0:
-                    plt.ion()
-                    l.plot_sky()
-                    plt.savefig(fname+'_skymap.png')
-                    plt.close()
-                if view:
+                results.append((cdate,fname+'.csv'))
+                if view :
+                    toimage(matrix_values(result, property='irradiance'), fname=fname+'_irradiancemap.png')
+                    if len(l.lights) > 0:
+                        plt.ion()
+                        l.plot_sky()
+                        plt.savefig(fname+'_skymap.png')
+                        plt.close()
                     l.scenerepr()[0].save(fname+'.bgeom')
-            print(result)
-            results.append((cdate,result))
+            else:
+                results.append((cdate,result))
     return results
 
 if __name__ == '__main__':
-    # date(month,day,hour)
     results = process_light(date(5,1,0), date(5,2,0), outdir='result', view=True)
     print(results)
 
