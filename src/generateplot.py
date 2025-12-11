@@ -1,21 +1,42 @@
 from openalea.plantgl.all import *
 from math import *
 
-PANELS, POLES, WIRES, SOIL, SENSORS = 1,2,3,4,5
+PANELS, POLES, WIRES, SOIL, SENSORS = 1, 2, 3, 4, 5
 # Reflectance_Up, Transmittance_Up, Reflectance_Down, Transmittance_Down
 
 
 def generate_plots():
-    panel = QuadSet([(0,0,0),(1.0,0,0),(1.0,1.93,0),(0,1.93,0)], [list(range(4))])
+    panel = QuadSet(
+        [(0, 0, 0), (1.0, 0, 0), (1.0, 1.93, 0), (0, 1.93, 0)],
+        [list(range(4))],
+    )
 
-    panel3 = Translated(0,0,5.12,AxisRotated(Vector3.OX,radians(15),Group([panel, Translated(1.075,0,0,panel), Translated(2.15,0,0, panel)])))
-    panel3 = [Translated(0,0,5.12,AxisRotated(Vector3.OX,radians(15), p)) for p in [panel, Translated(1.075,0,0,panel), Translated(2.15,0,0, panel)]]
+    panel3 = Translated(
+        0,
+        0,
+        5.12,
+        AxisRotated(
+            Vector3.OX,
+            radians(15),
+            Group(
+                [panel, Translated(1.075, 0, 0, panel), Translated(2.15, 0, 0, panel)]
+            ),
+        ),
+    )
+    panel3 = [
+        Translated(0, 0, 5.12, AxisRotated(Vector3.OX, radians(15), p))
+        for p in [panel, Translated(1.075, 0, 0, panel), Translated(2.15, 0, 0, panel)]
+    ]
 
-    row = [Translated(7.5*i, 0, 0, p) for i in range(6) for p in panel3]
+    row = [Translated(7.5 * i, 0, 0, p) for i in range(6) for p in panel3]
 
-    panelmatrix = [Translated(3.7 if j % 2 == 0 else 7.45, 3*j, 0, geom) for j in range(5) for geom in row]
+    panelmatrix = [
+        Translated(3.7 if j % 2 == 0 else 7.45, 3 * j, 0, geom)
+        for j in range(5)
+        for geom in row
+    ]
 
-    scene = Scene([Shape(panel, id = PANELS) for panel in panelmatrix])
+    scene = Scene([Shape(panel, id=PANELS) for panel in panelmatrix])
 
     borderpole = Cylinder(0.125, 6.81, solid=False)
 
@@ -24,26 +45,70 @@ def generate_plots():
     leftangle = 7.58
     rightangle = 7.02
 
+    leftborderpoles = [
+        Translated(3.4, 0.96 + 3 * i, 0, p)
+        for p in [
+            AxisRotated(
+                Vector3.OY,
+                radians(-30),
+                AxisRotated(Vector3.OX, radians(leftangle), borderpole),
+            ),
+            AxisRotated(
+                Vector3.OY,
+                radians(-30),
+                AxisRotated(Vector3.OX, radians(-rightangle), borderpole),
+            ),
+        ]
+        for i in range(5)
+    ]
 
-    leftborderpoles = [Translated(3.4,0.96+3*i,0,p) for p in [AxisRotated(Vector3.OY, radians(-30), AxisRotated(Vector3.OX, radians(leftangle), borderpole)), AxisRotated(Vector3.OY, radians(-30), AxisRotated(Vector3.OX, radians(-rightangle), borderpole))] for i in range(5)]
-
-    
-    rightborderpoles = [Translated(48.4,0.96+3*i,0,p) for p in [AxisRotated(Vector3.OY, radians(30), AxisRotated(Vector3.OX, radians(leftangle), borderpole)), AxisRotated(Vector3.OY, radians(30), AxisRotated(Vector3.OX, radians(-rightangle), borderpole))] for i in range(5)]
+    rightborderpoles = [
+        Translated(48.4, 0.96 + 3 * i, 0, p)
+        for p in [
+            AxisRotated(
+                Vector3.OY,
+                radians(30),
+                AxisRotated(Vector3.OX, radians(leftangle), borderpole),
+            ),
+            AxisRotated(
+                Vector3.OY,
+                radians(30),
+                AxisRotated(Vector3.OX, radians(-rightangle), borderpole),
+            ),
+        ]
+        for i in range(5)
+    ]
 
     borderpoles = leftborderpoles + rightborderpoles
 
+    centralpole = Cylinder(0.125 / 2, 5.9, solid=False)
 
-    centralpole = Cylinder(0.125/2, 5.9, solid=False)
+    leftcentralpoles = [
+        Translated(18.4, 0.96 + 3 * i, 0, p)
+        for p in [
+            AxisRotated(Vector3.OX, radians(leftangle), centralpole),
+            AxisRotated(Vector3.OX, radians(-rightangle), centralpole),
+        ]
+        for i in range(5)
+    ]
 
-    
-    leftcentralpoles = [Translated(18.4,0.96+3*i,0,p) for p in [AxisRotated(Vector3.OX, radians(leftangle), centralpole),
-                        AxisRotated(Vector3.OX, radians(-rightangle), centralpole)] for i in range(5)]
+    rightcentralpoles = [
+        Translated(33.4, 0.96 + 3 * i, 0, p)
+        for p in [
+            AxisRotated(Vector3.OX, radians(leftangle), centralpole),
+            AxisRotated(Vector3.OX, radians(-rightangle), centralpole),
+        ]
+        for i in range(5)
+    ]
 
-    rightcentralpoles = [Translated(33.4,0.96+3*i,0,p) for p in [AxisRotated(Vector3.OX, radians(leftangle), centralpole),
-                        AxisRotated(Vector3.OX, radians(-rightangle), centralpole)] for i in range(5)]
-
-    scene += Scene([Shape(pole, id = POLES) for pole in borderpoles+leftcentralpoles+rightcentralpoles])
+    scene += Scene(
+        [
+            Shape(pole, id=POLES)
+            for pole in borderpoles + leftcentralpoles + rightcentralpoles
+        ]
+    )
     return scene
+
 
 ##### TILES FOR RAY TRACING
 ########### COLORS FOR FLOORS
@@ -84,5 +149,7 @@ def sensorgeometry(height = 0):
     return  Scene(floor)
 
 
-if __name__ == '__main__':
-    Viewer.display(generate_plots())
+
+if __name__ == "__main__":
+    sensordict = { 'c2' : (11,8,2), 'c3' : (27,4.5,2) }
+    Viewer.display(generate_plots()+Scene([Translated(pos,Sphere(0.1)) for name, pos in sensordict.items()]))
