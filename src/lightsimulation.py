@@ -82,13 +82,19 @@ def process_light(mindate = date(5,1,0), maxdate = date(11, 1,0), view = True, o
     
     initdate = date(1,1,0)
 
+    sensordict = { 'c2' : Vector3(11,8,2), 'c3' : Vector3(27,4.5,2) }
     l = LightEstimator(scene)
     l.localize(name = 'Camargue', **localisation)
     l.add_sky(1)
     l.precompute_lights(type='SKY')
-    print('Compute diffuse irradiance map...')
-    # diffuse_irradiance = l(method=eTriangleProjection, primitive=eShapeBased)
-    #print(diffuse_irradiance)
+    for name, pos in sensordict.items():
+        l.add_sensor(name, pos)
+        l.sensors[name].compute()
+        if view:
+            plt.ion()
+            l.sensors[name].view()
+            plt.savefig('sensor_'+name+'_skymap.png')
+            plt.close()
 
     results = []
     for index, row in meteo.iterrows():
@@ -103,10 +109,12 @@ def process_light(mindate = date(5,1,0), maxdate = date(11, 1,0), view = True, o
             print(result)
             result = format_values(result)
             result['TrIrradiance'] = result['irradiance']/globalirr
+            result_sensor = l.estimate_sensors()
 
             if outdir:
                 fname = join(outdir,'simulation_'+str(height).replace('.','_')+'_'+cdate.strftime('%Y-%m-%d-%H-%M'))
                 result.to_csv(fname+'.csv',sep='\t')
+                result_sensor.to_csv(fname+'_sensors.csv',sep='\t')
                 toimage(matrix_values(result, property='irradiance'), fname=fname+'_irradiancemap.png')
                 #toimage(matrix_values(result, property='TrIrradiance'), fname=fname+'_TrIrradiancemap.png')
                 if len(l.lights) > 0:
@@ -122,6 +130,6 @@ def process_light(mindate = date(5,1,0), maxdate = date(11, 1,0), view = True, o
 
 if __name__ == '__main__':
     # date(month,day,hour)
-    results = process_light(date(11,1,0), date(11,3,0), outdir='result', view=False)
+    results = process_light(date(11,1,0), date(11,3,0), outdir='result', view=True)
     print(results)
 

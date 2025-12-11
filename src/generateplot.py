@@ -8,7 +8,7 @@ PANELS, POLES, WIRES, SOIL, SENSORS = 1, 2, 3, 4, 5
 def generate_plots():
     panel = QuadSet(
         [(0, 0, 0), (1.0, 0, 0), (1.0, 1.93, 0), (0, 1.93, 0)],
-        [list(range(4)), panelcolor],
+        [list(range(4))],
     )
 
     panel3 = Translated(
@@ -151,4 +151,5 @@ def sensorgeometry(height = 0):
 
 
 if __name__ == "__main__":
-    Viewer.display(generate_plots())
+    sensordict = { 'c2' : (11,8,2), 'c3' : (27,4.5,2) }
+    Viewer.display(generate_plots()+Scene([Translated(pos,Sphere(0.1)) for name, pos in sensordict.items()]))
