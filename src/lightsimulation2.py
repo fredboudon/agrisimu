@@ -87,7 +87,7 @@ def process_light(mindate = date(5,1,0), maxdate = date(11, 1,0), view = True, o
     #scene = ground(height)
     
 
-sensordict = { 'c2' : Vector3(57*0.5,9*0.5,2), 'c3' : Vector3(43*0.5,15*0.5,2) }
+    sensordict = { 'c2' : Vector3(57*0.5,9*0.5,2), 'c3' : Vector3(43*0.5,15*0.5,2) }
     l = LightEstimator(scene)
     l.localize(name = 'Camargue', **localisation)
 
@@ -116,9 +116,6 @@ sensordict = { 'c2' : Vector3(57*0.5,9*0.5,2), 'c3' : Vector3(43*0.5,15*0.5,2) }
             l.clear_lights()
             l.add_astk_sun_sky(dates = [cdate], ghi = ghi, dhi = dhi)
             result = l.estimate_sensors()
-            l.plot()
-            if outdir:
-                l.scenerepr()[0].save('sensors_irradiance_'+pos2str(sensordict['c2'])+'_'+pos2str(sensordict['c3'])+'_'+cdate.strftime('%Y-%m-%d-%H-%M')+'.bgeom')
             results_date.append(cdate)
             for sensorid, irradiance in result.items():
                 if sensorid not in results_values:
