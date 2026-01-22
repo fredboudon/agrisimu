@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 
 
 DEBUG = False
-RESOLUTION = 0.1
+RESOLUTION = 0.01  # in meters
 
 localisation = {'latitude':43.734286, 'longitude':4.570565, 'altitude': 0, 'timezone': 'Europe/Paris'}
 # north = -90
@@ -68,7 +68,7 @@ def date(month, day, hour):
     return pandas.Timestamp(datetime.datetime(2023, month, day, hour, 0, 0), tz=tz)
 
 """ Ne considerez que du '17-May' au '31-Oct' """
-def process_light(mindate = date(5,1,0), maxdate = date(11, 1,0), meteofile = 'weather.txt', sensorheight = 0.0, view = True, outdir = 'result'):
+def process_light(mindate = date(5,1,0), maxdate = date(11, 1,0), meteofile = 'weather.txt', sensorheight = 0.0, ponctualsensor = False, view = True, outdir = 'result'):
     """
     Process light simulation for an agrivoltaic scene over a specified date range.
     Simulates solar irradiance and sky conditions based on meteorological data,
@@ -97,8 +97,10 @@ def process_light(mindate = date(5,1,0), maxdate = date(11, 1,0), meteofile = 'w
     meteo = read_meteo(meteofile)
 
     # an agrivoltaic scene (generate plot)
-    scene = generate_plots()+sensorgeometry(sensorheight)
-    
+    agrisystem = generate_plots()
+    fieldsensors = sensorgeometry(sensorheight)
+    scene = fieldsensors+agrisystem
+
     initdate = date(1,1,0)
 
     sensordict = { 'c2' : Vector3(11,8,2), 'c3' : Vector3(27,4.5,2) }
@@ -107,39 +109,48 @@ def process_light(mindate = date(5,1,0), maxdate = date(11, 1,0), meteofile = 'w
 
     print('Set diffuse irradiance map as precomputed...')
     l.add_sky(1)
-    l.precompute_lights(type='SKY')
-    for name, pos in sensordict.items():
-        l.add_sensor(name, pos)
-        l.sensors[name].compute()
-        if view:
-            plt.ion()
-            l.sensors[name].view()
-            plt.savefig(join(outdir,'sensor_'+name+'_skymap.png'))
-            plt.close()
+    l.precompute_sky()
+
+    if ponctualsensor:
+        for name, pos in sensordict.items():
+            l.add_sensor(name, pos)
+            l.sensors[name].compute()
+            if view:
+                plt.ion()
+                l.sensors[name].view()
+                plt.savefig(join(outdir,'sensor_'+name+'_skymap.png'))
+                plt.close()
 
     results = []
+    #l.set_method(method=eZBufferProjection, primitive=eShapeBased, resolution = RESOLUTION)
+    #l.set_method(method=eTriangleProjection, primitive=eShapeBased)
+    l.set_method(method=eTriangleProjection, primitive=eShapeBased, occludedOnly = set([sh.id for sh in fieldsensors]), occludingOnly = set([sh.id for sh in agrisystem]))
     for index, row in meteo.iterrows():
-        time, globalirr, diffuseirr, temperature = row
-        cdate = initdate+datetime.timedelta(seconds=time)
+        timevalue, globalirr, diffuseirr, temperature = row
+        cdate = initdate+datetime.timedelta(seconds=timevalue)
         if cdate >= mindate and cdate < maxdate and globalirr > 0:
-            print(time, cdate, globalirr, diffuseirr, temperature)
+            print(timevalue, cdate, globalirr, diffuseirr, temperature)
             l.clear_lights()
             l.add_sun_sky(dates = [cdate], ghi = globalirr, dhi = diffuseirr)
-
             fname = join(outdir,'simulation_'+str(sensorheight).replace('.','_')+'_'+cdate.strftime('%Y-%m-%d-%H-%M'))
             if os.path.exists(fname+'.csv'):
                 results.append((cdate,fname+'.csv'))
                 print('  already done, skip')
                 continue
-            result = l(method=eTriangleProjection, primitive=eShapeBased)
+            t = time.time()
+            result = l()
+            print('  simulation time:', time.time()-t)
             result = format_values(result)
             result['TrIrradiance'] = result['irradiance']/globalirr
-            result_sensor = l.estimate_sensors()
+            if ponctualsensor:
+                result_sensor = l.estimate_sensors()
 
             if outdir:
                 result.to_csv(fname+'.csv',sep='\t')
                 results.append((cdate,fname+'.csv'))
-                result_sensor.to_csv(fname+'_sensors.csv',sep='\t')
+                if ponctualsensor:
+                    result_sensor = pandas.DataFrame({'irradiance':result_sensor})
+                    result_sensor.to_csv(fname+'_sensors.csv',sep='\t')
                 if view :
                     toimage(matrix_values(result, property='irradiance'), fname=fname+'_irradiancemap.png')
                     if len(l.lights) > 0:
@@ -154,6 +165,6 @@ def process_light(mindate = date(5,1,0), maxdate = date(11, 1,0), meteofile = 'w
 
 if __name__ == '__main__':
     # date(month,day,hour)
-    results = process_light(date(11,1,0), date(11,3,0), outdir='result', view=True)
+    results = process_light(date(11,1,0), date(11,1,9), outdir='result', view=True)
     print(results)
 

@@ -151,5 +151,6 @@ def sensorgeometry(height = 0):
 
 
 if __name__ == "__main__":
-    sensordict = { 'c2' : (11,8,2), 'c3' : (27,4.5,2) }
-    Viewer.display(generate_plots()+Scene([Translated(pos,Sphere(0.1)) for name, pos in sensordict.items()]))
+    sensordict = { 'c2' : Vector3(57*0.5,9*0.5,2), 'c3' : Vector3(43*0.5,15*0.5,2) }
+    #sensordict = { 'c2' : (11,8,2), 'c3' : (27,4.5,2) }
+    Viewer.display(generate_plots()+sensorgeometry()+Scene([Shape(Translated(pos,Sphere(0.5)), Material("#94B5DA", Color3(255,0,0))) for name, pos in sensordict.items()]))

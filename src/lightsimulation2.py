@@ -20,20 +20,29 @@ RESOLUTION = 0.1
 localisation = {'latitude':43.734286, 'longitude':4.570565, 'altitude': 0, 'timezone': 'Europe/Paris'}
 # north = -90
 
-def read_meteo(data_file='weather.txt', localisation = localisation['timezone']):
+def read_meteo(data_file='2023_PAR_c1.txt', localisation = localisation['timezone']):
     """ reader for mango meteo files """
     import pandas
-    data = pandas.read_csv(data_file, delimiter = '\t',
-                               usecols=['Time','Global','Diffuse','Temp'], dayfirst=True)
+    data = pandas.read_csv(data_file, delimiter = '\t', dayfirst=True)
 
-    data = data.rename(columns={'Time':'Time',
-                                 'Global':'global_radiation',
-                                 'Temp':'temperature_air'})
+    #data = data.rename(columns={'date_time':'date_time',
+    #                             'par':'global_radiation'})
     # convert kW.m-2 to W.m-2
-    #data['global_radiation'] *= 1000. 
-    #index = pandas.DatetimeIndex(data['date']).tz_localize(localisation)
-    #data = data.set_index(index)
+    #data['global_radiation'] *= 1000.
+    index = pandas.DatetimeIndex(data['date_time']).tz_localize(localisation)
+    data.drop(columns=["date_time"], axis=1, inplace=True)
+    data = data.set_index(index)
     return data
+
+
+def get_meteo(capteur='c1'):
+    ppfd = read_meteo(data_file='2023_PAR_'+capteur+'.txt')
+    global_radiation = read_meteo(data_file='2023_globalradiations_'+capteur+'.txt')
+    #ppfd.rename(columns={'par':'PAR'}, inplace=True)
+    from openalea.astk.sky_irradiance import sky_irradiance
+    sky_irr = sky_irradiance(dates=ppfd.index, ghi=global_radiation['Rg'], ppfd=ppfd['PAR'])
+    return sky_irr
+
 
 
 def format_values(irradiances):
@@ -70,56 +79,70 @@ def process_light(mindate = date(5,1,0), maxdate = date(11, 1,0), view = True, o
         os.mkdir(outdir)
 
     # read the meteo
-    meteo = read_meteo()
+    meteo = get_meteo('c1')
 
     # an agrivoltaic scene (generate plot)
     height = 0.0
     scene = generate_plots()
     #scene = ground(height)
     
-    initdate = date(1,1,0)
 
+sensordict = { 'c2' : Vector3(57*0.5,9*0.5,2), 'c3' : Vector3(43*0.5,15*0.5,2) }
     l = LightEstimator(scene)
     l.localize(name = 'Camargue', **localisation)
-    for sensorid, position in sensorpositions(height):
+
+    for sensorid, position in sensordict.items():
         print('sensor', sensorid)
         l.add_sensor(sensorid, position)
         l.sensors[sensorid].compute()
+        if view and outdir:
+                plt.ion()
+                l.sensors[sensorid].view()
+                plt.savefig(join(outdir,'sensor_'+sensorid+'_skymap.png'))
+                plt.close()
+
         #l.sensors[sensorid].view()
+
     print('Added', len(l.sensors), 'sensors')
 
-    results = []
-    for index, row in meteo.iterrows():
-        time, globalirr, diffuseirr, temperature = row
-        cdate = initdate+datetime.timedelta(seconds=time)
-        if cdate >= mindate and cdate < maxdate and globalirr > 0:
+    results_date = []
+    results_values = {'ghi': [], 'dhi': []  }
+    i = 0
+    for cdate, row in meteo.iterrows():
+        i += 1
+        ghi, dhi = row['ghi'], row['dhi']
+        if (mindate is None or cdate >= mindate) and (maxdate is None or cdate < maxdate) and ghi > 0:
+            if i %  100 == 0:  print('Processing', cdate, '...', i, ghi, dhi)
             l.clear_lights()
-            print(time, cdate, globalirr, diffuseirr, temperature)
-            l.add_astk_sun_sky(dates = [cdate], ghi = globalirr, dhi = diffuseirr)
+            l.add_astk_sun_sky(dates = [cdate], ghi = ghi, dhi = dhi)
             result = l.estimate_sensors()
-            result = format_values(result)
-            result['TrIrradiance'] = result['irradiance']/globalirr
-
+            l.plot()
             if outdir:
-                fname = join(outdir,'sensors_'+str(height).replace('.','_')+'_'+cdate.strftime('%Y-%m-%d-%H-%M'))
-                result.to_csv(fname+'.csv',sep='\t')
-                toimage(matrix_values(result, property='irradiance'), fname=fname+'_irradiancemap.png')
-                #toimage(matrix_values(result, property='TrIrradiance'), fname=fname+'_TrIrradiancemap.png')
-                if len(l.lights) > 0:
-                    plt.ion()
-                    l.plot_sky()
-                    plt.savefig(fname+'_skymap.png')
-                    plt.close()
-                if view:
-                    (l.sensors_repr(size=0.5)[0]+l.scene).save(fname+'.bgeom')
-                    #l.plot(sensorsize=0.5)
-            results.append((cdate,result))
+                l.scenerepr()[0].save('sensors_irradiance_'+pos2str(sensordict['c2'])+'_'+pos2str(sensordict['c3'])+'_'+cdate.strftime('%Y-%m-%d-%H-%M')+'.bgeom')
+            results_date.append(cdate)
+            for sensorid, irradiance in result.items():
+                if sensorid not in results_values:
+                    results_values[sensorid] = []
+                results_values[sensorid].append(irradiance)
+                results_values['ghi'].append(ghi)
+                results_values['dhi'].append(dhi)
+
+    result ={'date_time': results_date}
+    result.update(results_values)
+    results = pandas.DataFrame(result)
+    index = results['date_time']
+    results.drop(columns=["date_time"], axis=1, inplace=True)
+    results = results.set_index(index)
+    pos2str = lambda pos: str(pos.x)+'_'+str(pos.y)+'_'+str(pos.z)
+    if outdir:
+        results.to_csv(join(outdir,'sensors_irradiance_'+pos2str(sensordict['c2'])+'_'+pos2str(sensordict['c3'])+'.csv'),sep='\t')
     return results
 
 if __name__ == '__main__':
     # date(month,day,hour)
-    results = process_light(date(5,1,0), date(5,2,0), outdir='result', view=True)
-    results = process_light( outdir='result', view=True)
-    #results = process_light(date(5,1,12), date(5,1,13), outdir='result', view=True)
+    #results = process_light(date(5,1,0), date(5,2,0), outdir='result', view=True)
+    #results = process_light( outdir='result', view=True)
+    results = process_light(None, None, outdir='result', view=True)
     print(results)
+    #print(meteo('c2'))
 
