@@ -30,7 +30,7 @@ def read_meteo(data_file='2023_PAR_c1.txt', localisation = localisation['timezon
     # convert kW.m-2 to W.m-2
     #data['global_radiation'] *= 1000.
     index = pandas.DatetimeIndex(data['date_time']).tz_localize(localisation)
-    data.drop(columns=["date_time"], axis=1, inplace=True)
+    data.drop(columns=["date_time"], inplace=True)
     data = data.set_index(index)
     return data
 
@@ -128,7 +128,7 @@ def process_light(mindate = date(5,1,0), maxdate = date(11, 1,0), view = True, o
     result.update(results_values)
     results = pandas.DataFrame(result)
     index = results['date_time']
-    results.drop(columns=["date_time"], axis=1, inplace=True)
+    results.drop(columns=["date_time"], inplace=True)
     results = results.set_index(index)
     pos2str = lambda pos: str(pos.x)+'_'+str(pos.y)+'_'+str(pos.z)
     if outdir:
