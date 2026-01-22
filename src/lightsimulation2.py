@@ -108,6 +108,7 @@ def process_light(mindate = date(5,1,0), maxdate = date(11, 1,0), view = True, o
     results_date = []
     results_values = {'ghi': [], 'dhi': []  }
     i = 0
+    t = time.time()
     for cdate, row in meteo.iterrows():
         i += 1
         ghi, dhi = row['ghi'], row['dhi']
@@ -123,7 +124,7 @@ def process_light(mindate = date(5,1,0), maxdate = date(11, 1,0), view = True, o
                 results_values[sensorid].append(irradiance)
                 results_values['ghi'].append(ghi)
                 results_values['dhi'].append(dhi)
-
+    print('Done in', time.time() - t, 'seconds')
     result ={'date_time': results_date}
     result.update(results_values)
     results = pandas.DataFrame(result)
@@ -139,7 +140,7 @@ if __name__ == '__main__':
     # date(month,day,hour)
     #results = process_light(date(5,1,0), date(5,2,0), outdir='result', view=True)
     #results = process_light( outdir='result', view=True)
-    results = process_light(None, None, outdir='result', view=True)
+    results = process_light(None, date(6,1,0), outdir='result', view=True)
     print(results)
     #print(meteo('c2'))
 
