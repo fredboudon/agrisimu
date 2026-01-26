@@ -97,7 +97,7 @@ def process_light(mindate = date(5,1,0), maxdate = date(11, 1,0), meteofile = 'w
     meteo = read_meteo(meteofile)
 
     # an agrivoltaic scene (generate plot)
-    agrisystem = generate_plots()
+    agrisystem = agristructure()
     fieldsensors = sensorgeometry(sensorheight)
     scene = fieldsensors+agrisystem
 
@@ -161,6 +161,7 @@ def process_light(mindate = date(5,1,0), maxdate = date(11, 1,0), meteofile = 'w
                     l.scenerepr()[0].save(fname+'.bgeom')
             else:
                 results.append((cdate,result))
+    
     return results
 
 if __name__ == '__main__':

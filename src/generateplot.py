@@ -4,8 +4,11 @@ from math import *
 PANELS, POLES, WIRES, SOIL, SENSORS = 1, 2, 3, 4, 5
 # Reflectance_Up, Transmittance_Up, Reflectance_Down, Transmittance_Down
 
+# pilone en bas a gauche 1,5m en X et 1m en Y
+# en carré                3           2
+# Le suivant       3           8
 
-def generate_plots():
+def agristructure(initial_offset=(-2,0)):
     panel = QuadSet(
         [(0, 0, 0), (1.0, 0, 0), (1.0, 1.93, 0), (0, 1.93, 0)],
         [list(range(4))],
@@ -107,6 +110,11 @@ def generate_plots():
             for pole in borderpoles + leftcentralpoles + rightcentralpoles
         ]
     )
+    for sh in scene:
+        if type(sh.geometry) == Translated:
+            sh.geometry.translation = sh.geometry.translation + Vector3(initial_offset[0],initial_offset[1], 0)
+        else :
+            sh.geometry = Translated(initial_offset[0],initial_offset[1],0, sh.geometry)
     return scene
 
 
@@ -138,12 +146,12 @@ def id2position(id):
 def sensorpositions(height = 0):
     WCOL = MAPLENGTH / NBCOL
     WROW = MAPWIDTH / NBLIG
-    return [(position2id(col, rank),(WCOL*col,WROW*rank,height)) for col, rank in sensorsids()]
+    return [(position2id(col, rank),(WCOL*col+WCOL/2,WROW*rank+WROW/2,height)) for col, rank in sensorsids()]
 
 def sensorgeometry(height = 0):
     WCOL = MAPLENGTH / NBCOL
     WROW = MAPWIDTH / NBLIG
-    tile = QuadSet([(-WCOL/2,0,0),(WCOL/2,0,0),(WCOL/2,WROW,0),(-WCOL/2,WROW,0)], [list(range(4))])
+    tile = QuadSet([(-WCOL/2,-WROW/2,0),(WCOL/2,-WROW/2,0),(WCOL/2,WROW/2,0),(-WCOL/2,WROW/2,0)], [list(range(4))])
     floor = [Shape(Translated(position,tile), groundcol, id) for id, position in sensorpositions(height)]
     ########### GROUND
     return  Scene(floor)
