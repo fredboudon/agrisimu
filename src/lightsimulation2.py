@@ -162,7 +162,7 @@ def optimize_sensor_position(sensordict=sensordict, multithreading = True, outdi
     dates = np.unique(meteo.index.date)
     nbdates =  50
     step = 0.05
-    nbjobs = multiprocessing.cpu_count() * 1
+    nbjobs = multiprocessing.cpu_count() * 5
     selected_dates = np.random.choice(dates, size=nbdates, replace=False)
     mask = np.isin(meteo.index.date, selected_dates)
     selected = meteo[mask]

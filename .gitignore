@@ -160,3 +160,7 @@ cython_debug/
 #.idea/
 src/result
 src/result_*
+src/.pglcache
+src/dataview
+src/optimization_result
+

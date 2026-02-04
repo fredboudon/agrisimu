@@ -156,9 +156,22 @@ def sensorgeometry(height = 0):
     ########### GROUND
     return  Scene(floor)
 
+from data_util import clearsky, localisation
+
+def plot_light_source(meteo = clearsky):
+    from openalea.plantgl.light import LightEstimator, to_clockwise
+    scene = agristructure()+sensorgeometry()
+    l = LightEstimator(scene,90)
+    l.localize(**localisation)
+    #l.add_sun(meteo.index, 1)
+    for cdate, row in meteo.iterrows():
+        ghi, dhi = row['ghi'], row['dhi']
+        l.add_light(f"sun_{cdate.strftime('%Y%m%d_%H%M')}", row['elevation'], row['azimuth'],  ghi, horizontal=True, date=cdate, type='SUN')
+    l.plot()
+    return l
 
 
 if __name__ == "__main__":
-    sensordict = { 'c2' : Vector3(57*0.5,9*0.5,2), 'c3' : Vector3(43*0.5,15*0.5,2) }
-    #sensordict = { 'c2' : (11,8,2), 'c3' : (27,4.5,2) }
-    Viewer.display(generate_plots()+sensorgeometry()+Scene([Shape(Translated(pos,Sphere(0.5)), Material("#94B5DA", Color3(255,0,0))) for name, pos in sensordict.items()]))
+    sensordict = { 'c2' : Vector3(29.5,4.5,2), 'c3' : Vector3(22,8,2) }
+    Viewer.display(agristructure()+sensorgeometry()+Scene([Shape(Translated(pos,Sphere(0.5)), Material("#94B5DA", Color3(255,0,0))) for name, pos in sensordict.items()]))
+    #l = plot_light_source(clearsky)
