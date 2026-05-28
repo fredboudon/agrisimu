@@ -159,8 +159,13 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 src/result
-src/result_*
-src/.pglcache
+src/result_sensors
+src/analysis
+src/analysis_filtered
 src/dataview
 src/optimization_result
-
+src/clusters_comparison
+src/meteo_comparison
+src/timeresolution_comparison
+src/yield_analysis/*
+src/.pglcache0

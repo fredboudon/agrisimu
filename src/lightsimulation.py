@@ -11,7 +11,9 @@ from generateplot import *
 import data_util; reload(data_util)
 from data_util import *
 
-import time, datetime, pytz
+from localization import *
+
+import time
 from os.path import join
 
 import matplotlib.pyplot as plt
@@ -21,8 +23,10 @@ DEBUG = False
 RESOLUTION = 0.01  # in meters
 
 
-""" Ne considerez que du '17-May' au '31-Oct' """
-def process_light(meteo=meteo, mindate = None, maxdate = None, sensorheight = 0.0,  view = True, outdir = 'result'):
+def _process_light(*args):
+    return process_light(*args[0], multithreaded = False)
+
+def process_light(meteo=None, mindate = None, maxdate = None, outdir = 'result', jobname = None, sensorheight = 0, multithreaded = True):
     """
     Process light simulation for an agrivoltaic scene over a specified date range.
     Simulates solar irradiance and sky conditions based on meteorological data,
@@ -44,41 +48,50 @@ def process_light(meteo=meteo, mindate = None, maxdate = None, sensorheight = 0.
         - Computes transmitted irradiance as a fraction of global horizontal irradiance.
         - Only processes timesteps with positive global irradiance values.
     """
+    if jobname:
+        print('Start job', jobname)
     if outdir and not os.path.exists(outdir):
         os.mkdir(outdir)
+    
+    if os.path.exists(join(outdir,'global_irradiances.pkl')):
+        print('Job', jobname, ': results already exist, skip ...')
+        return []
 
     # an agrivoltaic scene (generate plot)
     agrisystem = agristructure()
     fieldsensors = sensorgeometry(sensorheight)
     scene = fieldsensors+agrisystem
+    precomputationpath = '.pglcache'+str(sensorheight).replace('.','_')
 
     l = LightEstimator(scene)
     l.localize(name = 'Camargue', **localisation)
 
     results = []
-    l.set_method(method=eTriangleProjection, primitive=eShapeBased, occludedOnly = set([sh.id for sh in fieldsensors]), occludingOnly = set([sh.id for sh in agrisystem]))
+    l.set_method(method=eTriangleProjection, primitive=eShapeBased, occludedOnly = set([sh.id for sh in fieldsensors]), occludingOnly = set([sh.id for sh in agrisystem]), multithreaded = multithreaded)
     nbdates = len(meteo.index)
     initt = time.time()
     firsti = -1
 
     l.always_precompute()
-    l.load_precomputation()
+    l.load_precomputation(precomputationpath)
+
+    prefixmessage = '**** ' +('job '+str(jobname).zfill(2) if not jobname is None else 'main')+ ' -'
 
     for i, (cdate, row) in enumerate(meteo.iterrows()):
-        globalirr, diffuseirr, c2, c3 = row['ghi'],row['dhi'],row['c2'],row['c3']
+        globalirr, diffuseirr = row['ghi'],row['dhi']
         if (mindate is None or cdate >= mindate) and (maxdate is None or cdate < maxdate) and globalirr > 0:
             t = time.time()
-            #l.add_sun(dates = [cdate], irradiance = globalirr)
             fname = join(outdir,'simulation_'+str(sensorheight).replace('.','_')+'_'+cdate.strftime('%Y-%m-%d-%H-%M'))
             if os.path.exists(fname+'.csv'):
                 results.append((cdate,fname+'.csv'))
-                print(cdate,':  already done, skip ...')
+                print(prefixmessage, "Process date",repr(str(cdate)),"with ghi: %.2f and dhi: %.2f" % (globalirr, diffuseirr),':  already done, skip ...')
                 if firsti == i-1:
                     firsti = i
                 continue
             l.clear_lights()
-            l.add_sun_sky(dates = [cdate], ghi = globalirr, dhi = diffuseirr)
-            print("Configure date '",cdate,"' with ghi:", globalirr, 'and dhi:', diffuseirr,'in', time.time()-t,'sec')
+            l.add_light(f"sun_{cdate.strftime('%Y%m%d_%H%M')}", row['elevation'], row['azimuth'],  globalirr-diffuseirr, horizontal=True, date=cdate, type='SUN')
+            l.add_sky(irradiance = diffuseirr)
+            print(prefixmessage, "Process date",repr(str(cdate)), "with ghi: %.2f and dhi: %.2f" % (globalirr, diffuseirr), '...')
 
             result = l()
 
@@ -99,7 +112,7 @@ def process_light(meteo=meteo, mindate = None, maxdate = None, sensorheight = 0.
                     #l.scenerepr()[0].save(fname+'.bgeom')
             else:
                 results.append((cdate,result))
-            print('Generate output in', time.time()-t_res,'sec')
+            #print('Generate output in', time.time()-t_res,'sec')
             simutime = time.time()-t
             #print(firsti,i,nbdates-i-1,time.time()-initt)
             estimate = (time.time()-initt)*(nbdates-i-1)/(i-firsti)
@@ -110,13 +123,52 @@ def process_light(meteo=meteo, mindate = None, maxdate = None, sensorheight = 0.
             else:
                 estimate_str = str(int(estimate))+'s'
 
-            l.dump_precomputation()
-            print('  simulation time:', simutime,'s - estimate',estimate_str)
+            l.dump_precomputation(precomputationpath)
+            print(prefixmessage, "Process date",repr(str(cdate)),':  simulation time :', simutime,'s - estimate',estimate_str)
+    
+    if outdir:
+        print(prefixmessage, "All results saved in directory", outdir, "from", repr(str(mindate)), "to", repr(str(maxdate)))
+        if jobname is None:
+            print(prefixmessage, "Total simulation time : ", time.time()-initt,'s')
+            print(prefixmessage, "Compress irradiance results ...")
+            compress_irradiances(outdir)
    
     return results
 
+def mt_process_light(meteo=None, mindate = None, maxdate = None, nbjobs=None,**kwargs):
+    import os
+    outdir = kwargs.get('outdir','result')
+    if os.path.exists(join(outdir,'global_irradiances.pkl')) or os.path.exists(join(outdir,'global_irradiances.pkl.zip')):
+        print('results already exist, skip ...')
+        return load_irradiances(outdir)
+    if not mindate is None:
+        meteo = meteo[meteo.index >= mindate]
+    if not maxdate is None:
+        meteo = meteo[meteo.index < maxdate]
+    nbitems = len(meteo.index)
+    nbjobs  = os.cpu_count() if nbjobs is None else nbjobs
+    itemsperjob = (nbitems+nbjobs-1)//nbjobs
+    args = []
+    for i in range(nbjobs):
+        submeteo = meteo.iloc[i*itemsperjob:(i+1)*itemsperjob]
+        if len(submeteo) > 0:
+            args.append((submeteo, mindate, maxdate, kwargs.get('outdir','result'), i ))
+    print('Run', nbjobs, 'parallel jobs with', itemsperjob, 'items each (last one with', len(submeteo), 'items)')
+    if nbjobs == 1:
+        results = [ process_light(*arg) for arg in args ]   
+    else:
+        from multiprocessing import Pool
+        results = Pool().map(_process_light, args)
+    compress_irradiances(kwargs.get('outdir','result'))
+    return results
+
 if __name__ == '__main__':
+    from meteo import *
+    setup_meteo()
     # date(month,day,hour)
-    results = process_light(outdir='result', view=True)
-    print(results)
+    #results = mt_process_light(outdir='result/weather2023', meteo=meteo)
+    #results = mt_process_light(outdir='result/clear_sky', meteo=generate_meteo())
+    #results = mt_process_light(outdir='result/cloudy', meteo=generate_meteo(attenuation=0.3))
+    results = mt_process_light(outdir='result/intermediate_sky', meteo=generate_meteo(attenuation=0.5))
+    #print(results)
 
