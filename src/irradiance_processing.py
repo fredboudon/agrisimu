@@ -409,7 +409,7 @@ def analyze_irradiance_data(plot_irradiances, meteo, output='analysis', imgsize 
     from data_util import toarray, toimage
     from generateplot import retrieve_panel_projection
     if not os.path.exists(output):
-        os.makedirs(output)
+        os.makedirs(output, exist_ok=True)
 
     irradiance_metrics = False
     shading_metrics = True
@@ -901,7 +901,7 @@ def compare_clusters(irradiances_per_clusters, cluster_name = 'Cluster', cluster
     print(" *** Compare clusters ***")
 
     if not os.path.exists(output):
-        os.makedirs(output)
+        os.makedirs(output, exist_ok=True)
 
     panels = retrieve_panel_projection()
     dt = {key : list(irradiances_per_clusters[key].values())[0].index.diff().seconds[1] for key in irradiances_per_clusters.keys()}
@@ -1205,20 +1205,20 @@ if __name__ == '__main__':
     import os
     from meteo import *
 
-    irradiances_per_plot_5min = get_irradiances_per_plot('result')
-    #analyze_irradiance_data(irradiances_per_plot_5min, meteo, output='analysis')
+    irradiances_per_plot_5min = get_irradiances_per_plot('result/weather2023')
+    #analyze_irradiance_data(irradiances_per_plot_5min, meteo, output='analysis/weather2023')
 
     irradiances_per_plot_5min = filter_dict(irradiances_per_plot_5min)
-    #analyze_irradiance_data(irradiances_per_plot_5min, meteo, output='analysis_filtered',imgsize = (30,100))
-    #df = compare_treatments(irradiances_per_plot_5min, output='clusters_comparison',imgsize = (30,100))
-    #df.to_csv(os.path.join('clusters_comparison', 'comparison_results.csv'))
+    #analyze_irradiance_data(irradiances_per_plot_5min, meteo, output='analysis_filtered/weather2023',imgsize = (30,100))
+    #df = compare_treatments(irradiances_per_plot_5min, output='clusters_comparison/weather2023',imgsize = (30,100))
+    #df.to_csv(os.path.join('clusters_comparison/weather2023', 'comparison_results.csv'))
 
-    #for suffix, _meteo in [ ('_clear_sky', generate_meteo()), ('_cloudy', generate_meteo(attenuation=0.3)), ('_intermediate_sky', generate_meteo(attenuation=0.5))]:
-    #    plot_irradiances = get_irradiances_per_plot('result'+suffix)
+    #for suffix, _meteo in [ ('clear_sky', generate_meteo()), ('cloudy', generate_meteo(attenuation=0.3)), ('intermediate_sky', generate_meteo(attenuation=0.5))]:
+    #    plot_irradiances = get_irradiances_per_plot('result/'+suffix)
     #    #analyze_irradiance_data(plot_irradiances, _meteo, output='analysis'+suffix)
     #    #analyze_irradiance_data(filter_dict(plot_irradiances), _meteo, output='analysis_filtered'+suffix,imgsize = (30,100))
     
-    #data = dict([(name,filter_dict(get_irradiances_per_plot('result'+suffix))) for suffix, name in [ ('', '2023'), ('_clear_sky', 'clear'), ('_cloudy', 'cloudy'), ('_intermediate_sky', 'intermediate')]])
+    #data = dict([(name,filter_dict(get_irradiances_per_plot('result/'+suffix))) for suffix, name in [ ('weather2023', '2023'), ('clear_sky', 'clear'), ('cloudy', 'cloudy'), ('intermediate_sky', 'intermediate')]])
     #compare_clusters(data, cluster_name='', cluster_title = 'per Weather', cluster_order = ['2023', 'clear', 'intermediate', 'cloudy'], output='meteo_comparison',imgsize = (30,100))
 
     #irradiances_per_plot_5min = filter_dict(irradiances_per_plot_5min)

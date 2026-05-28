@@ -119,7 +119,7 @@ fig, ax = plot_pca_clusters(
     labels=latex_labels
 )
 if not os.path.exists('yield_analysis'):
-    os.makedirs('yield_analysis')
+    os.makedirs('yield_analysis', exist_ok=True)
 plt.savefig(os.path.join('yield_analysis', 'pca_intermittence_index.png'))
 plt.close()
 

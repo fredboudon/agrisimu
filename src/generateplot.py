@@ -231,7 +231,7 @@ def project_irradiance(geometry, date, datarep = 'result_clear_sky', column = 'i
 def create_animation(sceneiterator, outputfolder = 'animation', prefix = 'frame'):
     import os
     if not outputfolder is None and not os.path.exists(outputfolder):
-        os.makedirs(outputfolder)
+        os.makedirs(outputfolder, exist_ok=True)
     nbtimepoints = len(next(sceneiterator))
     print(f"Number of time points : {nbtimepoints}")
     Viewer.frameGL.setSize(1200, 600)

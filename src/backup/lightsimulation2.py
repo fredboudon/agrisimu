@@ -87,7 +87,7 @@ ref_data = { 'c2': read_meteo('2023_globalradiations_c2.txt')['Rg'], 'c3': read_
 """ Ne considerez que du '17-May' au '31-Oct' """
 def process_light(mindate = date(5,1,0), maxdate = date(11, 1,0), sensordict=sensordict, meteo=meteo, view = True, outdir = None, verbose = True):
     if outdir and not os.path.exists(outdir):
-        os.mkdir(outdir)
+        os.makedirs(outdir, exist_ok=True)
 
 
     # an agrivoltaic scene (generate plot)
@@ -139,6 +139,7 @@ def process_light(mindate = date(5,1,0), maxdate = date(11, 1,0), sensordict=sen
     results.drop(columns=["date_time"], inplace=True)
     results = results.set_index(index)
     if outdir:
+        os.makedirs(outdir, exist_ok=True)
         pos2str = lambda pos: str(pos.x)+'_'+str(pos.y)+'_'+str(pos.z)
         results.to_csv(join(outdir,'sensors_irradiance_'+str(sensordict['c2'])+'_'+str(sensordict['c3'])+'.csv'),sep='\t')
     #results['ref_c2'] = refc2
@@ -174,7 +175,7 @@ def optimize_sensor_position(sensordict=sensordict, multithreading = True, outdi
             positions_to_test.append(((i,j), Vector3(dx,dy,2)))
 
     if not os.path.exists(outdir):
-        os.mkdir(outdir)
+        os.makedirs(outdir, exist_ok=True)
 
     resultfnames = {sensorid : join(outdir,'irradiance_error_map_'+sensorid+'_'+str(step)) for sensorid in sensordict.keys()}
     if all([os.path.exists(f+'.npy') for f in resultfnames.values()]):

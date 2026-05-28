@@ -26,7 +26,7 @@ RESOLUTION = 0.01  # in meters
 def _process_light(*args):
     return process_light(*args[0], multithreaded = False)
 
-def process_light(meteo=None, mindate = None, maxdate = None, outdir = 'result', jobname = None, sensorheight = 0, multithreaded = True):
+def process_light(meteo=None, mindate = None, maxdate = None, outdir = 'result/weather2023', jobname = None, sensorheight = 0, multithreaded = True):
     """
     Process light simulation for an agrivoltaic scene over a specified date range.
     Simulates solar irradiance and sky conditions based on meteorological data,
@@ -51,7 +51,7 @@ def process_light(meteo=None, mindate = None, maxdate = None, outdir = 'result',
     if jobname:
         print('Start job', jobname)
     if outdir and not os.path.exists(outdir):
-        os.mkdir(outdir)
+        os.makedirs(outdir, exist_ok=True)
     
     if os.path.exists(join(outdir,'global_irradiances.pkl')):
         print('Job', jobname, ': results already exist, skip ...')
@@ -137,7 +137,7 @@ def process_light(meteo=None, mindate = None, maxdate = None, outdir = 'result',
 
 def mt_process_light(meteo=None, mindate = None, maxdate = None, nbjobs=None,**kwargs):
     import os
-    outdir = kwargs.get('outdir','result')
+    outdir = kwargs.get('outdir','result/weather2023')
     if os.path.exists(join(outdir,'global_irradiances.pkl')) or os.path.exists(join(outdir,'global_irradiances.pkl.zip')):
         print('results already exist, skip ...')
         return load_irradiances(outdir)
@@ -152,23 +152,23 @@ def mt_process_light(meteo=None, mindate = None, maxdate = None, nbjobs=None,**k
     for i in range(nbjobs):
         submeteo = meteo.iloc[i*itemsperjob:(i+1)*itemsperjob]
         if len(submeteo) > 0:
-            args.append((submeteo, mindate, maxdate, kwargs.get('outdir','result'), i ))
+            args.append((submeteo, mindate, maxdate, kwargs.get('outdir','result/weather2023'), i ))
     print('Run', nbjobs, 'parallel jobs with', itemsperjob, 'items each (last one with', len(submeteo), 'items)')
     if nbjobs == 1:
         results = [ process_light(*arg) for arg in args ]   
     else:
         from multiprocessing import Pool
         results = Pool().map(_process_light, args)
-    compress_irradiances(kwargs.get('outdir','result'))
+    compress_irradiances(kwargs.get('outdir','result/weather2023'))
     return results
 
 if __name__ == '__main__':
     from meteo import *
     setup_meteo()
     # date(month,day,hour)
-    #results = mt_process_light(outdir='result/weather2023', meteo=meteo)
-    #results = mt_process_light(outdir='result/clear_sky', meteo=generate_meteo())
-    #results = mt_process_light(outdir='result/cloudy', meteo=generate_meteo(attenuation=0.3))
+    results = mt_process_light(outdir='result/weather2023', meteo=meteo)
+    results = mt_process_light(outdir='result/clear_sky', meteo=generate_meteo())
+    results = mt_process_light(outdir='result/cloudy', meteo=generate_meteo(attenuation=0.3))
     results = mt_process_light(outdir='result/intermediate_sky', meteo=generate_meteo(attenuation=0.5))
     #print(results)
 

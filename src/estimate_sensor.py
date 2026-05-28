@@ -48,7 +48,7 @@ def process_sensors(meteo=meteo, mindate = None, maxdate = None, view = False, o
         - Only processes timesteps with positive global irradiance values.
     """
     if outdir and not os.path.exists(outdir):
-        os.mkdir(outdir)
+        os.makedirs(outdir, exist_ok=True)
 
     fname = 'sensor_simulation'
     if outdir:

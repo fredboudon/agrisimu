@@ -391,7 +391,7 @@ def plot_sensor_meteo(saving = True, blocking = False, polar = True, output = 'd
     import os
     from meteo import meteo, clearsky, clearskyQ, meteo200, clearsky200, clearskyQ200
     if not os.path.exists(output):
-        os.mkdir(output)
+        os.makedirs(output, exist_ok=True)
     figsize = (5,4)
     for sensor in ['c2','c3']:
         for _suffix, (_meteo, _clearsky, _clearskyQ) in zip(['','_200'], [(meteo, clearsky, clearskyQ), (meteo200, clearsky200, clearskyQ200)]):

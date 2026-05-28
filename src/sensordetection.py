@@ -160,7 +160,7 @@ def optimize_sensor_position(sensordict=sensordict, meteo= None, step = 0.02, ra
 
     initposindex = { sensorid : min([((i,j), norm(tosensorpos(i,j,sensorid)-sensordict[sensorid])) for i,j in positions_to_test], key=lambda x : x[1])[0] for sensorid in sensordict.keys() }
     if not os.path.exists(outdir):
-        os.makedirs(outdir)
+        os.makedirs(outdir, exist_ok=True)
 
     resultfnames = {sensorid : join(outdir,'irradiance_error_map_loc_'+sensorid+'_'+str(step)+'_'+('fullmap' if fullmap else str(rangetotest)+'_'+'_'.join(map(str,sensorpos)))) for sensorid,sensorpos in sensordict.items()}
     if all([os.path.exists(f+'.npy') for f in resultfnames.values()]):
