@@ -8,7 +8,12 @@ from importlib import reload
 import generateplot; reload(generateplot)
 from generateplot import *
 
-import time, datetime, pytz
+import data_util; reload(data_util)
+from data_util import *
+
+from localization import *
+
+import time
 from os.path import join
 
 import matplotlib.pyplot as plt
@@ -17,58 +22,11 @@ import matplotlib.pyplot as plt
 DEBUG = False
 RESOLUTION = 0.01  # in meters
 
-localisation = {'latitude':43.734286, 'longitude':4.570565, 'altitude': 0, 'timezone': 'Europe/Paris'}
-# north = -90
 
-def read_meteo(data_file='weather.txt', localisation = localisation['timezone']):
-    """ reader for mango meteo files """
-    import pandas
-    data = pandas.read_csv(data_file, delimiter = '\t',
-                               usecols=['Time','Global','Diffuse','Temp'], dayfirst=True)
+def _process_light(*args):
+    return process_light(*args[0], multithreaded = False)
 
-    data = data.rename(columns={'Time':'Time',
-                                 'Global':'global_radiation',
-                                 'Temp':'temperature_air'})
-    # convert kW.m-2 to W.m-2
-    #data['global_radiation'] *= 1000. 
-    #index = pandas.DatetimeIndex(data['date']).tz_localize(localisation)
-    #data = data.set_index(index)
-    return data
-
-
-def format_values(irradiances):
-    irradiances = irradiances[irradiances.index >= IDDECAL]
-    rowcol = []
-    for shapeid, row  in irradiances.iterrows():
-        rowcol.append(id2position(shapeid))
-    cols, rows = zip(*rowcol)
-    irradiances.insert(0,'row', rows)
-    irradiances.insert(1,'column', cols)
-    irradiances = irradiances.sort_values(['column','row'])
-    irradiances = irradiances.reset_index(drop=True)
-
-    return irradiances
-
-def matrix_values(df, property='irradiance'):
-    import numpy as np
-    res = np.zeros((max(df['row'])+1,max(df['column'])+1))
-    for index, row in df.iterrows():
-        res[int(row['row']),int(row['column'])] = float(row[property])
-    return res
-
-def toimage(array, fname='out.png'):
-    plt.imshow(array, cmap='jet',vmin = 0, origin='lower')
-    plt.colorbar()
-    plt.show(block=False)
-    plt.savefig(fname)
-    plt.close()
-
-tz = pytz.timezone(localisation['timezone'])
-def date(month, day, hour):
-    return pandas.Timestamp(datetime.datetime(2023, month, day, hour, 0, 0), tz=tz)
-
-""" Ne considerez que du '17-May' au '31-Oct' """
-def process_light(mindate = date(5,1,0), maxdate = date(11, 1,0), meteofile = 'weather.txt', sensorheight = 0.0, ponctualsensor = False, view = True, outdir = 'result'):
+def process_light(meteo=None, mindate = None, maxdate = None, outdir = 'result/weather2023', jobname = None, sensorheight = 0, multithreaded = True):
     """
     Process light simulation for an agrivoltaic scene over a specified date range.
     Simulates solar irradiance and sky conditions based on meteorological data,
@@ -90,81 +48,127 @@ def process_light(mindate = date(5,1,0), maxdate = date(11, 1,0), meteofile = 'w
         - Computes transmitted irradiance as a fraction of global horizontal irradiance.
         - Only processes timesteps with positive global irradiance values.
     """
+    if jobname:
+        print('Start job', jobname)
     if outdir and not os.path.exists(outdir):
-        os.mkdir(outdir)
-
-    # read the meteo
-    meteo = read_meteo(meteofile)
+        os.makedirs(outdir, exist_ok=True)
+    
+    if os.path.exists(join(outdir,'global_irradiances.pkl')):
+        print('Job', jobname, ': results already exist, skip ...')
+        return []
 
     # an agrivoltaic scene (generate plot)
-    agrisystem = generate_plots()
+    agrisystem = agristructure()
     fieldsensors = sensorgeometry(sensorheight)
     scene = fieldsensors+agrisystem
+    precomputationpath = '.pglcache'+str(sensorheight).replace('.','_')
 
-    initdate = date(1,1,0)
-
-    sensordict = { 'c2' : Vector3(11,8,2), 'c3' : Vector3(27,4.5,2) }
     l = LightEstimator(scene)
     l.localize(name = 'Camargue', **localisation)
 
-    print('Set diffuse irradiance map as precomputed...')
-    l.add_sky(1)
-    l.precompute_sky()
-
-    if ponctualsensor:
-        for name, pos in sensordict.items():
-            l.add_sensor(name, pos)
-            l.sensors[name].compute()
-            if view:
-                plt.ion()
-                l.sensors[name].view()
-                plt.savefig(join(outdir,'sensor_'+name+'_skymap.png'))
-                plt.close()
-
     results = []
-    #l.set_method(method=eZBufferProjection, primitive=eShapeBased, resolution = RESOLUTION)
-    #l.set_method(method=eTriangleProjection, primitive=eShapeBased)
-    l.set_method(method=eTriangleProjection, primitive=eShapeBased, occludedOnly = set([sh.id for sh in fieldsensors]), occludingOnly = set([sh.id for sh in agrisystem]))
-    for index, row in meteo.iterrows():
-        timevalue, globalirr, diffuseirr, temperature = row
-        cdate = initdate+datetime.timedelta(seconds=timevalue)
-        if cdate >= mindate and cdate < maxdate and globalirr > 0:
-            print(timevalue, cdate, globalirr, diffuseirr, temperature)
-            l.clear_lights()
-            l.add_sun_sky(dates = [cdate], ghi = globalirr, dhi = diffuseirr)
+    l.set_method(method=eTriangleProjection, primitive=eShapeBased, occludedOnly = set([sh.id for sh in fieldsensors]), occludingOnly = set([sh.id for sh in agrisystem]), multithreaded = multithreaded)
+    nbdates = len(meteo.index)
+    initt = time.time()
+    firsti = -1
+
+    l.always_precompute()
+    l.load_precomputation(precomputationpath)
+
+    prefixmessage = '**** ' +('job '+str(jobname).zfill(2) if not jobname is None else 'main')+ ' -'
+
+    for i, (cdate, row) in enumerate(meteo.iterrows()):
+        globalirr, diffuseirr = row['ghi'],row['dhi']
+        if (mindate is None or cdate >= mindate) and (maxdate is None or cdate < maxdate) and globalirr > 0:
+            t = time.time()
             fname = join(outdir,'simulation_'+str(sensorheight).replace('.','_')+'_'+cdate.strftime('%Y-%m-%d-%H-%M'))
             if os.path.exists(fname+'.csv'):
                 results.append((cdate,fname+'.csv'))
-                print('  already done, skip')
+                print(prefixmessage, "Process date",repr(str(cdate)),"with ghi: %.2f and dhi: %.2f" % (globalirr, diffuseirr),':  already done, skip ...')
+                if firsti == i-1:
+                    firsti = i
                 continue
-            t = time.time()
+            l.clear_lights()
+            l.add_light(f"sun_{cdate.strftime('%Y%m%d_%H%M')}", row['elevation'], row['azimuth'],  globalirr-diffuseirr, horizontal=True, date=cdate, type='SUN')
+            l.add_sky(irradiance = diffuseirr)
+            print(prefixmessage, "Process date",repr(str(cdate)), "with ghi: %.2f and dhi: %.2f" % (globalirr, diffuseirr), '...')
+
             result = l()
-            print('  simulation time:', time.time()-t)
+
+            t_res = time.time()
             result = format_values(result)
             result['TrIrradiance'] = result['irradiance']/globalirr
-            if ponctualsensor:
-                result_sensor = l.estimate_sensors()
 
             if outdir:
                 result.to_csv(fname+'.csv',sep='\t')
                 results.append((cdate,fname+'.csv'))
-                if ponctualsensor:
-                    result_sensor = pandas.DataFrame({'irradiance':result_sensor})
-                    result_sensor.to_csv(fname+'_sensors.csv',sep='\t')
-                if view :
+                if False :
                     toimage(matrix_values(result, property='irradiance'), fname=fname+'_irradiancemap.png')
                     if len(l.lights) > 0:
                         plt.ion()
                         l.plot_sky()
                         plt.savefig(fname+'_skymap.png')
                         plt.close()
-                    l.scenerepr()[0].save(fname+'.bgeom')
+                    #l.scenerepr()[0].save(fname+'.bgeom')
             else:
                 results.append((cdate,result))
+            #print('Generate output in', time.time()-t_res,'sec')
+            simutime = time.time()-t
+            #print(firsti,i,nbdates-i-1,time.time()-initt)
+            estimate = (time.time()-initt)*(nbdates-i-1)/(i-firsti)
+            if estimate > 3600:
+                estimate_str = str(int(estimate/3600))+'h'+str(int((estimate%3600)/60))+'m'
+            elif estimate > 60:
+                estimate_str = str(int(estimate/60))+'m'+str(int(estimate%60))+'s'
+            else:
+                estimate_str = str(int(estimate))+'s'
+
+            l.dump_precomputation(precomputationpath)
+            print(prefixmessage, "Process date",repr(str(cdate)),':  simulation time :', simutime,'s - estimate',estimate_str)
+    
+    if outdir:
+        print(prefixmessage, "All results saved in directory", outdir, "from", repr(str(mindate)), "to", repr(str(maxdate)))
+        if jobname is None:
+            print(prefixmessage, "Total simulation time : ", time.time()-initt,'s')
+            print(prefixmessage, "Compress irradiance results ...")
+            compress_irradiances(outdir)
+   
+    return results
+
+def mt_process_light(meteo=None, mindate = None, maxdate = None, nbjobs=None,**kwargs):
+    import os
+    outdir = kwargs.get('outdir','result/weather2023')
+    if os.path.exists(join(outdir,'global_irradiances.pkl')) or os.path.exists(join(outdir,'global_irradiances.pkl.zip')):
+        print('results already exist, skip ...')
+        return load_irradiances(outdir)
+    if not mindate is None:
+        meteo = meteo[meteo.index >= mindate]
+    if not maxdate is None:
+        meteo = meteo[meteo.index < maxdate]
+    nbitems = len(meteo.index)
+    nbjobs  = os.cpu_count() if nbjobs is None else nbjobs
+    itemsperjob = (nbitems+nbjobs-1)//nbjobs
+    args = []
+    for i in range(nbjobs):
+        submeteo = meteo.iloc[i*itemsperjob:(i+1)*itemsperjob]
+        if len(submeteo) > 0:
+            args.append((submeteo, mindate, maxdate, kwargs.get('outdir','result/weather2023'), i ))
+    print('Run', nbjobs, 'parallel jobs with', itemsperjob, 'items each (last one with', len(submeteo), 'items)')
+    if nbjobs == 1:
+        results = [ process_light(*arg) for arg in args ]   
+    else:
+        from multiprocessing import Pool
+        results = Pool().map(_process_light, args)
+    compress_irradiances(kwargs.get('outdir','result/weather2023'))
     return results
 
 if __name__ == '__main__':
+    from meteo import *
+    setup_meteo()
     # date(month,day,hour)
-    results = process_light(date(11,1,0), date(11,1,9), outdir='result', view=True)
-    print(results)
+    results = mt_process_light(outdir='result/weather2023', meteo=meteo)
+    results = mt_process_light(outdir='result/clear_sky', meteo=generate_meteo())
+    results = mt_process_light(outdir='result/cloudy', meteo=generate_meteo(attenuation=0.3))
+    results = mt_process_light(outdir='result/intermediate_sky', meteo=generate_meteo(attenuation=0.5))
+    #print(results)
 
