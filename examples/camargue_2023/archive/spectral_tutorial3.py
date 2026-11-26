@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 
 def create_spike_signal(n=256, baseline=0.2, spike_value=0.7):
     """
-    Signal constant avec un pic unique au milieu.
+    Constant signal with a single peak in the middle.
     """
     x = np.arange(n)
     s = np.full(n, baseline, dtype=float)
@@ -20,7 +20,7 @@ def fft_analysis(signal, dt=1.0):
 
 def reconstruct_component(k, fft_coeffs, n):
     """
-    Reconstruit la composante temporelle correspondant à l'indice k.
+    Reconstruct the time-domain component at index k.
     """
     idx = np.arange(n)
 
@@ -35,7 +35,7 @@ def reconstruct_component(k, fft_coeffs, n):
 
 def reconstruct_from_selected_indices(fft_coeffs, selected_indices, n):
     """
-    Somme des composantes sélectionnées.
+    Sum the selected components.
     """
     rec = np.zeros(n)
     for k in selected_indices:
@@ -45,7 +45,7 @@ def reconstruct_from_selected_indices(fft_coeffs, selected_indices, n):
 
 def select_top_components(fft_coeffs, n_components):
     """
-    Sélectionne la moyenne + les n composantes non nulles les plus fortes.
+    Select the mean and the n strongest nonzero-frequency components.
     """
     magnitudes = np.abs(fft_coeffs)
     sorted_idx = np.argsort(magnitudes[1:])[::-1] + 1
@@ -61,14 +61,14 @@ def plot_spike_reconstructions(n=256):
 
     fig, axes = plt.subplots(len(reconstruction_levels) + 2, 1, figsize=(11, 10), sharex=True)
 
-    # 1. signal original
+    # 1. original signal
     axes[0].step(x, signal, where="mid", linewidth=2)
     axes[0].set_title("Original signal: flat baseline + one central spike")
     axes[0].set_ylabel("Signal")
     axes[0].set_ylim(0, 0.8)
     axes[0].grid(True, alpha=0.3)
 
-    # 2..4 reconstructions partielles
+    # 2..4 partial reconstructions
     for i, n_comp in enumerate(reconstruction_levels, start=1):
         selected = select_top_components(fft_coeffs, n_components=n_comp)
         rec = reconstruct_from_selected_indices(fft_coeffs, selected, n)
@@ -80,7 +80,7 @@ def plot_spike_reconstructions(n=256):
         axes[i].grid(True, alpha=0.3)
         axes[i].legend(loc="upper right")
 
-    # dernière : reconstruction complète
+    # final panel shows the full reconstruction
     selected_all = list(range(n_freqs_total))
     rec_all = reconstruct_from_selected_indices(fft_coeffs, selected_all, n)
 

@@ -10,9 +10,9 @@ from .paths import DATA_DIR, OUTPUT_DIR
 PANELS, POLES, WIRES, SOIL, SENSORS = 1, 2, 3, 4, 5
 # Reflectance_Up, Transmittance_Up, Reflectance_Down, Transmittance_Down
 
-# pilone en bas a gauche 1,5m en X et 1m en Y
-# en carré                3           2
-# Le suivant       3           8
+# Lower-left support post at 1.5 m on the X axis and 1 m on the Y axis
+# square layout                3           2
+# next       3           8
 
 def agristructure(initial_offset=(-2,0)):
 #def agristructure(initial_offset=(0,0)):
@@ -38,8 +38,8 @@ def agristructure(initial_offset=(-2,0)):
 
     borderpole = Cylinder(0.125, 6.81, solid=False)
 
-    # 7.58 à gauche
-    # 7.02 à droite
+    # 7.58 on the left
+    # 7.02 on the right
     leftangle = 7.58
     rightangle = 7.02
 

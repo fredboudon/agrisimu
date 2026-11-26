@@ -1,4 +1,4 @@
-"""Lecture des simulations, opérations sur les dates et cartes de grille."""
+"""Simulation data loading, date operations, and grid maps."""
 
 import datetime
 
@@ -27,7 +27,7 @@ def toarray(coord, values, size=None, pixsize=5, pixlength=0.5, boxes=None):
 
     res = np.full((size[0]*pixsize, size[1]*pixsize), np.nan)
 
-    # remplissage des pixels
+    # Fill pixels
     base_i = coord[:,1] * pixsize
     base_j = coord[:,0] * pixsize
 
@@ -47,7 +47,7 @@ def toarray(coord, values, size=None, pixsize=5, pixlength=0.5, boxes=None):
             p1 = box
             p2 = np.roll(box, -1, axis=0)
 
-            # segments horizontaux
+            # Horizontal segments
             mask_h = p1[:,1] == p2[:,1]
             if np.any(mask_h):
                 y = np.round(p1[mask_h,1] / scale).astype(int)
@@ -63,7 +63,7 @@ def toarray(coord, values, size=None, pixsize=5, pixlength=0.5, boxes=None):
                 for yi, xa, xb in zip(y, x1, x2):
                     res[yi, xa:xb+1] = np.nan
 
-            # segments verticaux
+            # Vertical segments
             mask_v = p1[:,0] == p2[:,0]
             if np.any(mask_v):
                 x = np.round(p1[mask_v,0] / scale).astype(int)
@@ -192,8 +192,8 @@ def dataframe_toarray(df, coords, column, size=None, pixsize=5, pixlength=0.5, b
     return res
 
 def toimage(array, fname='out.png', vmin=None, vmax=None, xticklabels= None, yticklabels = None, markpixel= None, cmap='jet',):
-    # X in image --> correspond to second indice
-    # Y in image  --> first indice
+    # X in image --> correspond to second index
+    # Y in image  --> first index
     plt.matshow(array, cmap='jet',vmin = vmin, vmax=vmax, origin='lower')
     plt.colorbar()
     if markpixel:
@@ -232,7 +232,7 @@ def toimage_with_violin(
                          origin='lower', aspect='auto')
     fig.colorbar(img, ax=axes[0])
 
-    # pixels marqués
+    # Marked pixels
     if markpixel is not None:
         axes[0].scatter(
             [m[0] for m in markpixel],
@@ -256,7 +256,7 @@ def toimage_with_violin(
         axes[0].set_xticks(ticks)
         axes[0].set_xticklabels(yticklabels, rotation=60)
 
-    # --- DATA POUR VIOLIN ---
+    # --- VIOLIN PLOT DATA ---
     if data is None:
         data = array.ravel()
 
@@ -361,7 +361,7 @@ def load_irradiances(path, compression = True):
         return result
 
     if not os.path.isdir(path):
-        raise FileNotFoundError(f'Répertoire de simulation introuvable : {path}')
+        raise FileNotFoundError(f'Simulation directory not found at {path}')
     for p in sorted(os.listdir(path)):
         if p.startswith('simulation_') and p.endswith('.csv'):
             print('Loading irradiance data from', p)
@@ -372,7 +372,7 @@ def load_irradiances(path, compression = True):
             results.append(df)
     print('Total time to load irradiance data from', repr(path), ':', time.time() - t)
     if not results:
-        raise FileNotFoundError(f'Aucune simulation trouvée dans {path}')
+        raise FileNotFoundError(f'No simulation results found in {path}')
     results = concat(results, ignore_index=True)
     if results['height'].nunique() == 1:
         results.attrs['height'] = results['height'].iloc[0]

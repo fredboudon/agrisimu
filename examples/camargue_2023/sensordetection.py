@@ -26,9 +26,9 @@ sensordict = {'c2': Vector3(27.3,4.63,2), 'c3': Vector3(20.54,7.82,2)}
 DEBUG = False
 RESOLUTION = 0.1
 
-# pilone en bas a gauche 1,5m en X et 1m en Y
-# en carré                3           2
-# Le suivant              3           8
+# Lower-left support post at 1.5 m on the X axis and 1 m on the Y axis
+# square layout                3           2
+# next              3           8
 
 
 

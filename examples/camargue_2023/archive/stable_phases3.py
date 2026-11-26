@@ -261,13 +261,13 @@ def plot_stable_phase_distribution_grouped(stable_phases):
     durations = stable_phases["durations"]
     mean_S = stable_phases["means"]
 
-    # --- discrétisation ---
+    # --- Discretization ---
     mean_S_rounded = np.round(mean_S, 2)
 
-    # --- empilement ---
+    # --- Stacking ---
     data = np.stack((durations, mean_S_rounded), axis=1)
 
-    # --- comptage vectorisé ---
+    # --- Vectorized counting ---
     unique, counts = np.unique(data, axis=0, return_counts=True)
 
     # --- plot ---
@@ -331,18 +331,18 @@ def plot_feature_space_with_kmeans(std_rel_all, slope_all, kmeans,
 
     plt.figure(figsize=(6, 5))
 
-    # scatter par cluster
+    # Scatter plot by cluster
     for lab in np.unique(labels):
         idx = labels == lab
         plt.scatter(X[idx, 0], X[idx, 1],
                     s=5, alpha=0.4, label=f"Cluster {lab}")
 
-    # centres
+    # Cluster centers
     centers = 10**kmeans.cluster_centers_
     plt.scatter(centers[:, 0], centers[:, 1],
                 marker='x', s=100, linewidths=2, label="Centers")
 
-    # seuils
+    # Thresholds
     if std_thresh is not None:
         plt.axvline(std_thresh, linestyle='--', label="std_thresh")
     if slope_thresh is not None:
@@ -361,7 +361,7 @@ def plot_feature_space_with_kmeans(std_rel_all, slope_all, kmeans,
 
 
     # ---------------------------------------------------------------------------
-# Exemple d'utilisation / test rapide
+# Usage example and quick test
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
@@ -372,13 +372,13 @@ if __name__ == "__main__":
         [np.datetime64("2023-06-21T07:00") + np.timedelta64(int(i * 2), "m") for i in range(nt)]
     )
 
-    # Signal synthétique : deux phases stables + bruit + transitoire
+    # Synthetic signal with two stable phases, noise, and a transition
     S_row = np.concatenate([
-        np.full(80, 0.28) + rng.normal(0, 0.005, 80),   # phase stable ~0.28
+        np.full(80, 0.28) + rng.normal(0, 0.005, 80),   # stable phase ~0.28
         np.linspace(0.28, 0.15, 40) + rng.normal(0, 0.01, 40),  # transition
-        rng.uniform(0.10, 0.42, 200),                   # phase variable
-        np.full(80, 0.22) + rng.normal(0, 0.005, 80),   # phase stable ~0.22
-        rng.uniform(0.05, 0.30, 100),                   # fin variable
+        rng.uniform(0.10, 0.42, 200),                   # variable phase
+        np.full(80, 0.22) + rng.normal(0, 0.005, 80),   # stable phase ~0.22
+        rng.uniform(0.05, 0.30, 100),                   # variable ending
     ])
     S = S_row[np.newaxis, :]  # shape (1, nt)
 

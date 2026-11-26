@@ -1,12 +1,12 @@
 # AgriSimu
 
-AgriSimu caractérise la quantité de rayonnement sous des panneaux agrivoltaïques et la succession des phases d’ombre et de lumière. Le projet fournit des méthodes d’analyse de séries temporelles et une étude de cas basée sur la campagne Camargue 2023.
+AgriSimu characterizes solar irradiance beneath agrivoltaic panels and how shade and sunlight alternate over time. The project provides tools for analyzing time series and a case study based on the 2023 field campaign in Camargue, France.
 
 ## Installation
 
-### Environnement Conda complet
+### Full Conda environment
 
-Depuis la racine du dépôt, créer l’environnement décrit dans [`environnement.yaml`](environnement.yaml). Il inclut les dépendances d’analyse, de rendement et de simulation du cas Camargue.
+From the repository root, create the environment defined in [`environnement.yaml`](environnement.yaml). It includes the dependencies for time-series analysis, crop yield analysis, and irradiance simulation.
 
 ```sh
 conda env create -f environnement.yaml
@@ -15,25 +15,25 @@ python -m pip install --no-deps --no-build-isolation -e .
 python -m examples.camargue_2023 --help
 ```
 
-Le fichier utilise Python 3.14 et PlantGL 3.24.2, distribué via le canal `fredboudon/label/rc`. Cette version fournit l’API de précalcul utilisée par la simulation. [Paquets PlantGL](https://anaconda.org/channels/fredboudon/packages/openalea.plantgl/files)
+The environment uses Python 3.14 and PlantGL 3.24.2 from the `fredboudon/label/rc` channel. This PlantGL version provides the precomputation API used by the simulation. [PlantGL packages](https://anaconda.org/channels/fredboudon/packages/openalea.plantgl/files)
 
-### Bibliothèque d’analyse seule
+### Analysis library only
 
-Pour analyser des séries avec Python 3.10 ou ultérieur et les dépendances de `pyproject.toml` :
+To analyze time series with Python 3.10 or later, install the library and the dependencies listed in `pyproject.toml`.
 
 ```sh
 python -m pip install -e .
 ```
 
-## Calculer un indice sur ses propres séries
+## Calculate the spectral intermittency index
 
-L’indice spectral mesure la part de l’énergie des variations d’ombrage portée par les fréquences supérieures à un seuil. Ici, un pas de 300 secondes et une période seuil de six heures sont utilisés.
+The spectral intermittency index measures the fraction of spectral energy in shading fluctuations above a frequency threshold. This example uses a 300-second sampling interval and a frequency threshold corresponding to a six-hour period.
 
 ```python
 import numpy as np
 from agrisimu.spectral_analysis import spectral_analysis_matrix, spectral_intermittence_index
 
-# Deux séries d’irradiance transmise, exprimées en fractions du rayonnement incident.
+# Two transmitted irradiance series expressed as fractions of incident irradiance.
 t = np.arange(288) * 300
 transmission = np.vstack([
     0.7 + 0.2 * np.sin(2 * np.pi * t / 3600),
@@ -43,14 +43,14 @@ freqs, power = spectral_analysis_matrix(1 - transmission, dt=300)
 print(spectral_intermittence_index(freqs, power))
 ```
 
-## Organisation du dépôt
+## Repository layout
 
-| Emplacement | Contenu |
+| Location | Contents |
 | --- | --- |
-| [`src/agrisimu/`](src/agrisimu/) | Lecture des séries, cartes, spectres, phases stables et comparaisons |
-| [`examples/camargue_2023/`](examples/camargue_2023/) | Géométrie, capteurs, mesures, commandes et résultats de référence de la campagne |
-| [`docs/analyse.md`](docs/analyse.md) | Formats d’entrée, unités et définition des indicateurs |
+| [`src/agrisimu/`](src/agrisimu/) | Time-series loading, spatial maps, spectral analysis, stable-phase detection, and group comparisons |
+| [`examples/camargue_2023/`](examples/camargue_2023/) | Site geometry, sensors, measurements, commands, and reference results for the field campaign |
+| [`docs/analyse.md`](docs/analyse.md) | Input formats, units, and index definitions |
 
-Pour retrouver les commandes de l’étude, lancer `python -m examples.camargue_2023 --help` depuis la racine du dépôt. Le [guide Camargue 2023](examples/camargue_2023/README.md) décrit la chaîne de traitement et l’utilisation des archives existantes.
+Run `python -m examples.camargue_2023 --help` from the repository root to list the case study commands. The Camargue guide covers the workflow and explains how to reuse existing simulation archives. [Camargue 2023 guide](examples/camargue_2023/README.md)
 
-Le projet est distribué sous [licence GNU AGPL v3](LICENSE).
+AgriSimu is distributed under the [GNU AGPL v3 license](LICENSE).

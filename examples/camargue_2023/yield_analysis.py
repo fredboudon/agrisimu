@@ -1,4 +1,4 @@
-"""Rendement et indices lumineux agrégés par traitement et répétition."""
+"""Crop yield and light indices grouped by treatment and replicate."""
 
 from pathlib import Path
 
@@ -10,11 +10,13 @@ from sklearn.preprocessing import StandardScaler
 
 from agrisimu.statistics import compute_pca_with_clusters, plot_pca_clusters
 
-from .paths import DATA_DIR, OUTPUT_DIR, REFERENCE_DIR
+from .paths import DATA_DIR, OUTPUT_DIR, yield_indices_path
 
 
-def analyze_yield(indices_path=REFERENCE_DIR / "comparison_results.csv", output=OUTPUT_DIR / "yield_analysis"):
-    """Calcule les modèles et enregistre la figure d’ACP."""
+def analyze_yield(indices_path=None, output=OUTPUT_DIR / "yield_analysis"):
+    """Fit the models and save the PCA plot."""
+    if indices_path is None:
+        indices_path = yield_indices_path()
     output = Path(output)
     df = pd.read_csv(DATA_DIR / 'clusters.csv',
         dtype={'Rep': int,'group_clearsky': str})                 # cluster results

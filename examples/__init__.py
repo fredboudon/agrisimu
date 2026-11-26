@@ -1,1 +1,1 @@
-"""Études de cas AgriSimu."""
+"""AgriSimu case studies."""

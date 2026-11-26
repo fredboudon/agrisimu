@@ -3,16 +3,16 @@ import matplotlib.pyplot as plt
 
 
 def create_synthetic_irradiance():
-    # 24 h avec un point toutes les 5 minutes
+    # 24 hours sampled every five minutes
     t_hours = np.arange(0, 24, 5 / 60)
 
-    # cycle journalier de base
+    # Baseline daily cycle
     result = np.array([
         0.8 * np.sin((t - 6) * np.pi / 12) if 6 <= t <= 18 else 0
         for t in t_hours
     ])
 
-    # deux épisodes d'ombrage
+    # Two shading events
     result[int(9.5 * 12): int(10.5 * 12) + 1] = 0.1
     result[int(14 * 12): int(16 * 12) + 1] = 0.1
 
@@ -27,14 +27,14 @@ def fft_analysis(signal, dt_seconds):
 
 def reconstruct_component(k, fft_coeffs, n):
     """
-    Reconstruit la contribution temporelle d'une composante FFT.
+    Reconstruct the time-domain contribution of one FFT component.
     """
     idx = np.arange(n)
 
     if k == 0:
         return np.full(n, np.real(fft_coeffs[0]) / n)
 
-    # cas général pour rfft
+    # General case for rfft
     return 2 * np.real(fft_coeffs[k] * np.exp(2j * np.pi * k * idx / n)) / n
 
 
@@ -59,13 +59,13 @@ def describe_component(period_h):
 
 def select_main_components(freqs, fft_coeffs, n_oscillatory=4):
     """
-    Sélectionne :
-    - la moyenne (k=0)
-    - les composantes oscillantes les plus énergétiques
+    Select:
+    - the mean (k=0)
+    - the oscillating components with the highest energy
     """
     magnitudes = np.abs(fft_coeffs)
 
-    # on ignore la moyenne pour classer les oscillantes
+    # Exclude the mean when ranking oscillating components
     sorted_idx = np.argsort(magnitudes[1:])[::-1] + 1
     main_idx = list(sorted_idx[:n_oscillatory])
 
@@ -85,7 +85,7 @@ def plot_fft_tutorial(t_hours, signal, freqs, fft_coeffs, selected_indices):
     )
 
     # --------------------------
-    # Ligne 0 : signal initial
+    # Row 0 shows the original signal
     # --------------------------
     axes[0, 0].plot(t_hours, signal, linewidth=2)
     axes[0, 0].set_title("Signal original")
@@ -102,13 +102,13 @@ def plot_fft_tutorial(t_hours, signal, freqs, fft_coeffs, selected_indices):
     )
 
     # --------------------------
-    # Lignes suivantes
+    # Remaining rows
     # --------------------------
     for i, k in enumerate(selected_indices, start=1):
         comp = reconstruct_component(k, fft_coeffs, n)
         cumulative += comp
 
-        # infos
+        # Details
         if k == 0:
             label = "Moyenne"
             comment = "Décale tout le signal vers le haut ou le bas."
@@ -117,17 +117,17 @@ def plot_fft_tutorial(t_hours, signal, freqs, fft_coeffs, selected_indices):
             label = f"Période = {period_h:.2f} h"
             comment = describe_component(period_h)
 
-        # Colonne 1 : composante seule
+        # Column 1 shows the individual component
         axes[i, 0].plot(t_hours, comp, linewidth=2)
         axes[i, 0].set_ylabel(label)
         axes[i, 0].grid(True, alpha=0.3)
 
-        # Colonne 2 : somme cumulée
+        # Column 2 shows the cumulative sum
         axes[i, 1].plot(t_hours, signal, color="lightgray", linewidth=2, label="Original")
         axes[i, 1].plot(t_hours, cumulative, linewidth=2, label="Somme cumulée")
         axes[i, 1].grid(True, alpha=0.3)
 
-        # Colonne 3 : commentaire
+        # Column 3 shows the explanation
         axes[i, 2].axis("off")
         axes[i, 2].text(
             0.0, 0.5,
@@ -142,7 +142,7 @@ def plot_fft_tutorial(t_hours, signal, freqs, fft_coeffs, selected_indices):
     for ax in axes[-1, :2]:
         ax.set_xlabel("Temps (h)")
 
-    # légende une seule fois
+    # Show the legend once
     axes[1, 1].legend(loc="upper right")
 
     plt.tight_layout()
@@ -170,21 +170,21 @@ def plot_loglog_spectrum(freqs, fft_coeffs,
                          normalize=False,
                          annotate_peaks=True):
     """
-    Affichage du spectre FFT en log-log.
+    Plot the FFT spectrum on logarithmic axes.
 
     Parameters
     ----------
     freqs : ndarray
-        Fréquences (Hz)
+        Frequencies (Hz)
     fft_coeffs : ndarray
-        Coefficients FFT (complexes)
+        Complex FFT coefficients
     use_period : bool
-        Si True : axe X en périodes (heures)
-        Sinon : axe X en fréquences (Hz)
+        If True, show periods in hours on the x-axis.
+        Otherwise, show frequencies in hertz.
     normalize : bool
-        Si True : normalise les amplitudes
+        If True, normalize amplitudes.
     annotate_peaks : bool
-        Ajoute des annotations simples (24h, 12h, etc.)
+        Add basic annotations (24 h, 12 h, and so on).
     """
 
     import numpy as np
@@ -193,18 +193,18 @@ def plot_loglog_spectrum(freqs, fft_coeffs,
     # --- amplitude ---
     magnitudes = np.abs(fft_coeffs)
 
-    # --- enlever fréquence nulle ---
+    # --- Remove zero frequency ---
     mask = freqs > 0
     freqs = freqs[mask]
     magnitudes = magnitudes[mask]
 
-    # --- normalisation ---
+    # --- Normalization ---
     if normalize:
         magnitudes = magnitudes / np.max(magnitudes)
 
-    # --- conversion en période ---
+    # --- Convert to periods ---
     if use_period:
-        x = 1 / freqs / 3600  # en heures
+        x = 1 / freqs / 3600  # in hours
         xlabel = "Période (heures)"
     else:
         x = freqs
@@ -218,19 +218,19 @@ def plot_loglog_spectrum(freqs, fft_coeffs,
     plt.yscale('log')
 
     if use_period:
-        plt.gca().invert_xaxis()  # grandes périodes à gauche
+        plt.gca().invert_xaxis()  # Show longer periods on the left
 
     plt.xlabel(xlabel)
     plt.ylabel("Amplitude")
     plt.title("Spectre FFT (log-log)")
     plt.grid(True, which="both", alpha=0.3)
 
-    # --- ticks utiles ---
+    # --- Tick marks at useful intervals ---
     if use_period:
         ticks = [1, 2, 4, 8, 12, 24]
         plt.xticks(ticks, labels=[f"{t}h" for t in ticks])
 
-    # --- annotations simples ---
+    # --- Basic annotations ---
     if annotate_peaks and use_period:
         for p in [24, 12, 6]:
             plt.axvline(p, linestyle="--", alpha=0.3)
@@ -242,7 +242,7 @@ def plot_loglog_spectrum(freqs, fft_coeffs,
 def plot_all_components_and_sum(t_hours, signal, freqs, fft_coeffs, selected_indices):
     n = len(signal)
 
-    # Reconstruction de toutes les composantes sélectionnées
+    # Reconstruct all selected components
     components = []
     labels = []
 
@@ -257,7 +257,7 @@ def plot_all_components_and_sum(t_hours, signal, freqs, fft_coeffs, selected_ind
 
     summed_signal = np.sum(components, axis=0)
 
-    # ---- Figure 1 : toutes les composantes sur le même graphique ----
+    # ---- Figure 1 shows all components on the same plot ----
     plt.figure(figsize=(12, 5))
     for comp, lab in zip(components, labels):
         plt.plot(t_hours, comp, linewidth=1.5, label=lab)
@@ -270,7 +270,7 @@ def plot_all_components_and_sum(t_hours, signal, freqs, fft_coeffs, selected_ind
     plt.tight_layout()
     plt.show()
 
-    # ---- Figure 2 : somme des composantes ----
+    # ---- Figure 2 shows the sum of the components ----
     plt.figure(figsize=(12, 5))
     plt.plot(t_hours, summed_signal, linewidth=2, label="Somme des composantes")
     plt.plot(t_hours, signal, "--", linewidth=2, label="Signal original")
@@ -312,7 +312,7 @@ def plot_components_sum_and_original_same_axis(
     plt.tight_layout()
     plt.show()
 
-    # petit diagnostic
+    # Quick diagnostic
     rmse = np.sqrt(np.mean((summed_signal - signal) ** 2))
     print(f"RMSE reconstruction = {rmse:.6f}")
 
@@ -335,13 +335,13 @@ if __name__ == "__main__":
     # 2. FFT
     freqs, fft_coeffs = fft_analysis(S, dt_seconds)
 
-    # 3. spectre
+    # 3. spectrum
     plot_spectrum(freqs, fft_coeffs)
 
-    # 3.1 spectre
+    # 3.1 spectrum
     plot_loglog_spectrum(freqs, fft_coeffs)
 
-    # 4. sélection des composantes
+    # 4. component selection
     selected_indices = select_main_components(freqs, fft_coeffs, n_oscillatory=5)
 
     print("Composantes affichées :")
@@ -351,15 +351,15 @@ if __name__ == "__main__":
         else:
             print(f"  k={k}: période = {period_from_freq(freqs[k]):.2f} h")
 
-    # 5. figure pédagogique
+    # 5. illustrative figure
     plot_fft_tutorial(t_hours, S, freqs, fft_coeffs, selected_indices)
 
-    # 6. Affichage
+    # 6. Display
     plot_all_components_and_sum(t_hours, S, freqs, fft_coeffs, selected_indices)
 
-    # 7. Affichage sur le même graphique
+    # 7. Display on the same plot
     plot_components_sum_and_original_same_axis(t_hours, S, freqs, fft_coeffs, selected_indices)
 
-    # 8. Affichage sur le même graphique
+    # 8. Display on the same plot
     selected_indices = list(range(len(fft_coeffs)))
     plot_components_sum_and_original_same_axis(t_hours, S, freqs, fft_coeffs, selected_indices)    

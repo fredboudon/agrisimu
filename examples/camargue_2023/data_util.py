@@ -1,4 +1,4 @@
-"""Conventions de grille, capteurs et traitements du site."""
+"""Site conventions for the grid, sensors, and treatments."""
 
 import pandas
 from agrisimu.data_util import get_irradiances_per_plot, sort_irradiances_per_cluster

@@ -481,18 +481,18 @@ def plot_feature_space_with_kmeans(std_rel_all, slope_all, kmeans,
 
     plt.figure(figsize=(6, 5))
 
-    # scatter par cluster
+    # Scatter plot by cluster
     for lab in np.unique(labels):
         idx = labels == lab
         plt.scatter(X[idx, 0], X[idx, 1],
                     s=5, alpha=0.4, label=f"Cluster {lab}")
 
-    # centres
+    # Cluster centers
     centers = 10**kmeans.cluster_centers_
     plt.scatter(centers[:, 0], centers[:, 1],
                 marker='x', s=100, linewidths=2, label="Centers")
 
-    # seuils
+    # Thresholds
     if std_thresh is not None:
         plt.axvline(std_thresh, linestyle='--', label="std_thresh")
     if slope_thresh is not None:
@@ -511,5 +511,5 @@ def plot_feature_space_with_kmeans(std_rel_all, slope_all, kmeans,
 
 
     # ---------------------------------------------------------------------------
-# Exemple d'utilisation / test rapide
+# Usage example and quick test
 # ---------------------------------------------------------------------------

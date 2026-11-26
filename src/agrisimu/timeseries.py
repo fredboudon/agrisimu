@@ -1,4 +1,4 @@
-"""Matrices temporelles, distances et classification des points de la grille."""
+"""Time-series matrices, distances, and clustering of grid points."""
 
 import time
 
@@ -41,14 +41,14 @@ def distance_matrix(plot_irradiances, property='irradiance'):
 
 def build_timeseries_matrix(plot_irradiances, property='irradiance',  defaultvalue=0):
     """
-    Construit une matrice de timeseries à partir d'un dictionnaire de DataFrames.
-    Supposition : toutes les séries ont les mêmes timestamps et mêmes valeurs manquantes.
+    Build a time-series matrix from a dictionary of DataFrames.
+    All series are assumed to share timestamps and missing-value positions.
 
-    Renvoie les coordonnées triées, l’index temporel partagé et une matrice
-    de forme (nombre de points, nombre de dates).
+    Return the sorted coordinates, the shared time index, and a matrix
+    of shape (number of points, number of timestamps).
     """
     if not plot_irradiances:
-        raise ValueError("Au moins une série est nécessaire.")
+        raise ValueError("At least one time series is required.")
     coords = sorted(plot_irradiances)
     dfs = [plot_irradiances[c] for c in coords]
 
@@ -57,12 +57,12 @@ def build_timeseries_matrix(plot_irradiances, property='irradiance',  defaultval
     nt = len(full_index)
     nc = len(coords)
 
-    # matrice finale
+    # Final matrix
     M = np.zeros((nc, nt), dtype=float)
 
     for i, df in enumerate(dfs):
         if not df.index.equals(full_index):
-            raise ValueError(f"Les dates du point {coords[i]} diffèrent de la série de référence.")
+            raise ValueError(f"Timestamps for grid point {coords[i]} differ from the reference series.")
         M[i, :] = df[property].values
 
     return coords, full_index, M

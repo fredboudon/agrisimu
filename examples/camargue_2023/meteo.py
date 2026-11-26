@@ -1,4 +1,4 @@
-"""Préparation des données météo de la campagne Camargue."""
+"""Weather data preparation for the Camargue field campaign."""
 
 import pandas
 import pandas as pd
@@ -63,7 +63,7 @@ def prepare_meteo(shadinglevel=0.5):
     meteo['c2shaded'] = meteo['c2shading'] > shadinglevel
     meteo['c3shaded'] = meteo['c3shading'] > shadinglevel
 
-    # on enleve le premier et le dernier jour qui sont incomplets
+    # Drop the incomplete first and last days
     meteo = meteo.loc[
     (meteo.index.date != meteo.index.date[0]) &
     (meteo.index.date != meteo.index.date[-1])]
@@ -97,7 +97,7 @@ def quantize_meteo(meteo, precision = 1):
 
 @dataclass
 class Weather:
-    """Météo mesurée, sous-ensembles de ciel clair et positions solaires arrondies."""
+    """Measured weather data, clear-sky subsets, and rounded solar positions."""
 
     meteo: pd.DataFrame
     meteo90: pd.DataFrame
@@ -111,7 +111,7 @@ class Weather:
 
 
 def setup_meteo():
-    """Charge la campagne et sépare les périodes de hauteur des capteurs."""
+    """Load campaign data and split it by sensor height period."""
     meteo = prepare_meteo()
     before = meteo.index < date2m
     clear = meteo['ghi'] * 0.5 > meteo['dhi']
@@ -122,7 +122,7 @@ def setup_meteo():
 
 
 def generate_meteo(dates, attenuation=None):
-    """Génère un scénario d’irradiance sur le calendrier de la campagne."""
+    """Generate an irradiance scenario for the campaign timestamps."""
     from openalea.astk.sky_irradiance import sky_irradiance
 
     return sky_irradiance(

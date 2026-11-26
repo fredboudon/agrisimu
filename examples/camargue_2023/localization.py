@@ -1,4 +1,4 @@
-"""Coordonnées et fuseau horaire de la parcelle."""
+"""Site coordinates and time zone."""
 
 import pandas as pd
 

@@ -1,4 +1,4 @@
-"""Statistiques de durée du jour et visualisations météorologiques."""
+"""Daylight duration statistics and weather visualizations."""
 
 import pandas as pd
 import numpy as np
@@ -83,7 +83,7 @@ def decimal_hours_to_hhmm(x, pos=None):
     """Convert decimal hours to HH:MM format"""
     h = int(x)
     m = int(round((x - h) * 60))
-    if m == 60:  # correction arrondi
+    if m == 60:  # Adjust for rounding
         h += 1
         m = 0
     return f"{h:02d}:{m:02d}"
@@ -133,7 +133,7 @@ def violin_daylength_from_df(
     ax.set_ylabel("Day length (HH:MM)")
     ax.set_title("Daylight duration distribution")
 
-    # ✨ format HH:MM sur axe Y
+    # ✨ Format the y-axis as HH:MM
     ax.yaxis.set_major_formatter(mticker.FuncFormatter(decimal_hours_to_hhmm))
 
     ax.grid(axis="y", alpha=0.3)

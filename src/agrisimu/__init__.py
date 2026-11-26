@@ -1,1 +1,1 @@
-"""Analyse du rayonnement et de son intermittence sous panneaux."""
+"""Analysis of irradiance and intermittency beneath panels."""

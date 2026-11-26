@@ -45,15 +45,15 @@ def segment_stable_variance(S, timeline, dt,
             S_block = S_i[block]
             t_block = t[block]
 
-            # --- variance glissante ---
+            # --- Rolling variance ---
             std = rolling_std(S_block, window)
 
-            # alignement (centré)
+            # Center the values
             pad = window // 2
             std_full = np.full(len(S_block), np.nan)
             std_full[pad:-pad] = std
 
-            # --- seuil adaptatif ---
+            # --- Adaptive threshold ---
             #thresh = 0.05 #np.nanpercentile(std_full, q)
 
             stable = std_full < thresh
@@ -246,7 +246,7 @@ def compute_features_blockwise(S, timeline, dt, window=7, detrend_signal=True):
 
             S_block = S_i[block]
 
-            # detrend local (important)
+            # Remove local trends
             if detrend_signal:
                 S_proc = detrend(S_block)
             else:
@@ -378,19 +378,19 @@ def grow_stable_regions(core, extend_mask):
             i += 1
             continue
 
-        # --- trouver segment noyau ---
+        # --- Find the core segment ---
         start = i
         while i < n and core[i]:
             i += 1
         end = i
 
-        # --- extension à gauche ---
+        # --- Extend to the left ---
         j = start - 1
         while j >= 0 and extend_mask[j]:
             stable[j] = True
             j -= 1
 
-        # --- extension à droite ---
+        # --- Extend to the right ---
         j = end
         while j < n and extend_mask[j]:
             stable[j] = True
@@ -429,10 +429,10 @@ def segment_phases_region_growing(
             slope_block = slope[block]
             S_block = S_i[block]
 
-            # --- noyaux stricts ---
+            # --- Core segments under strict criteria ---
             core = slope_block < slope_thresh
 
-            # --- seuil std local (adaptatif) ---
+            # --- Adaptive local standard deviation threshold ---
             std_valid = std_block[~np.isnan(std_block)]
             if len(std_valid) == 0:
                 continue
@@ -465,7 +465,7 @@ def segment_phases_region_growing(
 
                 segment = S_block[s:e]
 
-                # filtre amplitude
+                # Amplitude filter
                 if np.max(segment) - np.min(segment) > amp_thresh:
                     continue
 
@@ -547,7 +547,7 @@ def run_stable_phase_detection(
     std_rel_all, slope_all, std_rel_list, slope_list, blocks = \
         compute_features_blockwise(S, timeline, dt, window=window)
 
-    # --- seuil slope ---
+    # --- Slope threshold ---
     slope_thresh = estimate_slope_threshold(
         slope_all,
         q=slope_quantile
@@ -582,13 +582,13 @@ def plot_stable_phase_distribution_grouped(stable_phases):
     durations = stable_phases["durations"]
     mean_S = stable_phases["means"]
 
-    # --- discrétisation ---
+    # --- Discretization ---
     mean_S_rounded = np.round(mean_S, 2)
 
-    # --- empilement ---
+    # --- Stacking ---
     data = np.stack((durations, mean_S_rounded), axis=1)
 
-    # --- comptage vectorisé ---
+    # --- Vectorized counting ---
     unique, counts = np.unique(data, axis=0, return_counts=True)
 
     # --- plot ---
@@ -652,18 +652,18 @@ def plot_feature_space_with_kmeans(std_rel_all, slope_all, kmeans,
 
     plt.figure(figsize=(6, 5))
 
-    # scatter par cluster
+    # Scatter plot by cluster
     for lab in np.unique(labels):
         idx = labels == lab
         plt.scatter(X[idx, 0], X[idx, 1],
                     s=5, alpha=0.4, label=f"Cluster {lab}")
 
-    # centres
+    # Cluster centers
     centers = 10**kmeans.cluster_centers_
     plt.scatter(centers[:, 0], centers[:, 1],
                 marker='x', s=100, linewidths=2, label="Centers")
 
-    # seuils
+    # Thresholds
     if std_thresh is not None:
         plt.axvline(std_thresh, linestyle='--', label="std_thresh")
     if slope_thresh is not None:

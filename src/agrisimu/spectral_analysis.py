@@ -9,12 +9,12 @@ def spectral_analysis_matrix(S, dt=5*60):
     S : array (n_squares, n_times)
     """
 
-    # Retirer la moyenne temporelle pour chaque carré
+    # Subtract the temporal mean for each grid cell
     S_centered = S - S.mean(axis=1, keepdims=True)
 
     N = S.shape[1]
 
-    # FFT le long du temps
+    # FFT along the time axis
     fft_vals = np.fft.rfft(S_centered, axis=1)
     freqs = np.fft.rfftfreq(N, d=dt)
 
@@ -42,28 +42,28 @@ def detect_spectral_bands(
     max_peaks=5
 ):
     """
-    Détection robuste des bandes spectrales structurelles
-    adaptée aux spectres fortement décroissants (type 1/f).
-    Cette version est robuste aux valeurs nulles (ex. nuit).
+    Robust detection of structural spectral bands
+    in steeply decreasing spectra (such as 1/f).
+    The method handles zero values, such as nighttime observations.
     """
 
-    # --- Spectre moyen ---
+    # --- Mean spectrum ---
     mean_power = powers.mean(axis=0)
 
-    # --- Lissage léger ---
+    # --- Light smoothing ---
     smoothed = gaussian_filter1d(mean_power, sigma=smoothing_sigma)
 
-    # --- Estimation du fond spectral (très lissé) ---
+    # --- Estimate the spectral background with heavy smoothing ---
     background = gaussian_filter1d(smoothed, sigma=background_sigma)
 
-    # Eviter division par zéro
+    # Avoid division by zero
     eps = 1e-12
     background = np.where(background <= 0, eps, background)
 
-    # --- Spectre aplati ---
+    # --- Flattened spectrum ---
     flattened = smoothed / background
 
-    # --- Détection des pics sur le spectre aplati ---
+    # --- Detect peaks in the flattened spectrum ---
     peaks, properties = find_peaks(
         flattened,
         prominence=prominence,
@@ -73,7 +73,7 @@ def detect_spectral_bands(
     if len(peaks) == 0:
         return None
 
-    # --- Largeur des pics ---
+    # --- Peak widths ---
     widths, height, left_ips, right_ips = peak_widths(
         flattened, peaks, rel_height=0.9
     )
@@ -86,13 +86,13 @@ def detect_spectral_bands(
         i_max = int(np.ceil(right))
         bands.append((i_min, i_max))
 
-        # Energie réelle (spectre non aplati)
+        # Energy from the unflattened spectrum
         band_energy = powers[:, i_min:i_max].sum(axis=1)
         band_energies.append(band_energy)
 
     band_energies = np.array(band_energies)
 
-    # --- Importance énergétique réelle ---
+    # --- Rank peaks by energy in the original spectrum ---
     mean_band_energy = band_energies.mean(axis=1)
     idx_sorted = np.argsort(mean_band_energy)[::-1]
 
@@ -129,13 +129,13 @@ def compute_bands_energy(powers, bands):
 
 def time_axis(ax):
     ticks = [
-        24*90,  # 3 mois
-        24*30,  # 1 mois
-        24*7,   # 1 semaine
-        24,     # 1 jour
+        24*90,  # 3 months
+        24*30,  # 1 month
+        24*7,   # 1 week
+        24,     # 1 day
         12,
         6,
-        1,      # 1 heure
+        1,      # 1 hour
         0.5,
         1/6,    # 10 min
     ]
@@ -157,18 +157,18 @@ def time_axis(ax):
 
 def plot_spectrum_in_period(freqs, power, square_index=0, log_scale = False):
     """
-    Affiche le spectre en fonction des périodes (heures)
+    Plot the spectrum against period in hours.
 
     freqs : array (n_freqs,)
     power : array (n_squares, n_freqs)
-    square_index : indice du carré à afficher
+    square_index : index of the grid cell to display
     """
 
-    # On enlève la fréquence 0 (sinon division par zéro)
+    # Remove zero frequency to avoid dividing by zero
     freqs_nonzero = freqs[1:]
     power_nonzero = power[square_index, 1:]
 
-    # Conversion en périodes (heures)
+    # Convert to periods in hours
     periods_hours = 1 / freqs_nonzero / 3600
 
     plt.figure(figsize=(8,5))
@@ -178,12 +178,12 @@ def plot_spectrum_in_period(freqs, power, square_index=0, log_scale = False):
     plt.axvline(12, linestyle="--", alpha=0.5)
     plt.axvline(1, linestyle="--", alpha=0.5)
 
-    plt.xscale("log")  # très important pour lisibilité
+    plt.xscale("log")  # Use a logarithmic scale for readability
     if log_scale : plt.yscale("log")
     plt.xlabel("Period")
     plt.ylabel("Spectral power")
     plt.title(f"Power spectrum of the shading rate of plot {square_index}")
-    plt.gca().invert_xaxis()  # longues périodes à gauche (plus intuitif)
+    plt.gca().invert_xaxis()  # Show longer periods on the left
     time_axis(plt.gca())
 
     plt.grid(True)
@@ -192,35 +192,35 @@ def plot_spectral_bands_period(freqs, powers, results,
                                time_unit="hours",
                                log_scale=False):
     """
-    Affiche le spectre moyen en fonction de la période au lieu de la fréquence.
+    Plot the mean spectrum against period.
 
     Parameters
     ----------
     freqs : array (n_freq,)
     powers : array (n_squares, n_freq)
-    results : dict retourné par detect_spectral_bands
+    results : dict returned by detect_spectral_bands
     time_unit : str
-        "minutes" ou "hours"
+        "minutes" or "hours"
     log_scale : bool
     """
     print('R',results)
     mean_power = powers.mean(axis=0)
 
-    # Eviter division par 0
+    # Avoid division by zero
     valid = freqs > 0
     freqs_valid = freqs[valid]
     power_valid = mean_power[valid]
 
     periods = 1 / freqs_valid
 
-    # Conversion optionnelle
+    # Optional conversion
     if time_unit == "minutes":
         periods = periods / 60
     elif time_unit == "hours":
         periods = periods / 3600
 
 
-    # Trier par période croissante
+    # Sort by increasing period
     sort_idx = np.argsort(periods)
     periods = periods[sort_idx]
     power_valid = power_valid[sort_idx]
@@ -232,7 +232,7 @@ def plot_spectral_bands_period(freqs, powers, results,
     else:
         plt.plot(periods, power_valid)
 
-    # Pics
+    # Peaks
     peak_freqs = freqs[results['peaks']]
     peak_periods = 1 / peak_freqs
     if time_unit == "minutes":
@@ -243,7 +243,7 @@ def plot_spectral_bands_period(freqs, powers, results,
     plt.scatter(peak_periods,
                 mean_power[results['peaks']], color='red', label='Peaks')
 
-    # Bandes
+    # Bands
     for (i_min, i_max) in results['bands']:
         f_min = freqs[i_min]
         f_max = freqs[i_max]
@@ -264,7 +264,7 @@ def plot_spectral_bands_period(freqs, powers, results,
     if not log_scale:
         plt.xscale("log")
     plt.xlabel(f"Period")
-    plt.gca().invert_xaxis()  # longues périodes à gauche (plus intuitif)
+    plt.gca().invert_xaxis()  # Show longer periods on the left
     time_axis(plt.gca())
     plt.ylabel("Power")
     plt.title("Spectral peaks and integrated bands (period domain)")
@@ -338,7 +338,7 @@ def plot_spectral_map(freqs, power, log_scale = True):
 
     power_nonzero = power[:,1:]
 
-    # éviter log(0)
+    # Avoid log(0)
     if log_scale:
         power = np.log10(power_nonzero + 1e-12)
 
@@ -359,17 +359,17 @@ def plot_mean_spectrum_with_bands(freqs, powers, results,
                             time_unit="hours",
                             log_scale=False):
 
-    # --- Moyenne et écart-type ---
+    # --- Mean and standard deviation ---
     mean_power = np.mean(powers, axis=0)
     std_power = np.std(powers, axis=0)
 
-    # --- Éviter f=0 ---
+    # --- Skip zero frequency ---
     valid = freqs > 0
     freqs_valid = freqs[valid]
     mean_power = mean_power[valid]
     std_power = std_power[valid]
 
-    # --- Conversion en période ---
+    # --- Convert to periods ---
     periods = 1 / freqs_valid
 
     if time_unit == "minutes":
@@ -377,7 +377,7 @@ def plot_mean_spectrum_with_bands(freqs, powers, results,
     elif time_unit == "hours":
         periods /= 3600
 
-    # --- Trier par période croissante ---
+    # --- Sort by increasing period ---
     sort_idx = np.argsort(periods)
     periods = periods[sort_idx]
     mean_power = mean_power[sort_idx]
@@ -396,7 +396,7 @@ def plot_mean_spectrum_with_bands(freqs, powers, results,
                      alpha=0.3,
                      label="±1 standard deviation")
 
-    # --- Pics ---
+    # --- Peaks ---
     peak_freqs = freqs[results['peaks']]
     peak_periods = 1 / peak_freqs
 
@@ -409,7 +409,7 @@ def plot_mean_spectrum_with_bands(freqs, powers, results,
                 np.mean(powers, axis=0)[results['peaks']],
                 color='red', label='Peaks')
 
-    # --- Bandes ---
+    # --- Bands ---
     for (i_min, i_max) in results['bands']:
         f_min = freqs[i_min]
         f_max = freqs[i_max]
@@ -450,7 +450,7 @@ def plot_reference_band_energy(ref_bands, freqs, energy):
         period_hours = int(floor(period_hours))
         label = f"{period_hours}h{str(period_minutes).zfill(2)}"
         labels.append(label)
-    plt.gca().invert_xaxis()  # longues périodes à gauche (plus intuitif)
+    plt.gca().invert_xaxis()  # Show longer periods on the left
     plt.xticks(ref_bands['peaks'], labels, rotation=45)
     plt.xlabel('Peak period')
     plt.ylabel('Energy')

@@ -1,8 +1,9 @@
-"""Simulation PlantGL de l’irradiance sur la grille de Camargue."""
+"""PlantGL irradiance simulation on the Camargue grid."""
 
 from concurrent.futures import ProcessPoolExecutor
 import os
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 
 from openalea.plantgl.all import LightEstimator, eShapeBased, eTriangleProjection
 
@@ -11,9 +12,9 @@ from agrisimu.data_util import compress_irradiances
 from .data_util import format_values
 from .generateplot import agristructure, sensorgeometry
 from .localization import localisation
-from .paths import OUTPUT_DIR
+from .paths import CASE_DIR, MEASURED_RESULTS
 
-DEFAULT_RESULT = OUTPUT_DIR / "result" / "weather2023"
+DEFAULT_RESULT = MEASURED_RESULTS
 
 
 def _daylight_weather(meteo, mindate, maxdate):
@@ -28,9 +29,27 @@ def _has_archive(outdir):
     return any((outdir / name).is_file() for name in ("global_irradiances.pkl", "global_irradiances.pkl.zip"))
 
 
+def _save_precomputation(estimator, cache):
+    """Publish complete pickle files so workers can share the cache."""
+    cache.mkdir(exist_ok=True)
+    for light_id, value in estimator.precomputed_lights.items():
+        if value is None or isinstance(value, str):
+            continue
+        path = cache / f"{light_id}.pkl"
+        if path.exists():
+            continue
+        with NamedTemporaryFile(dir=cache, suffix=".tmp", delete=False) as file:
+            temporary = Path(file.name)
+        try:
+            value.to_pickle(temporary)
+            temporary.replace(path)
+        finally:
+            temporary.unlink(missing_ok=True)
+
+
 def process_light(meteo, mindate=None, maxdate=None, outdir=DEFAULT_RESULT, jobname=None,
                   sensorheight=0, multithreaded=True):
-    """Simule un lot de dates et retourne les tables ou les chemins de leurs TSV."""
+    """Simulate a batch of timestamps and return tables or paths to their TSV files."""
     weather = _daylight_weather(meteo, mindate, maxdate)
     if weather.empty:
         return []
@@ -39,12 +58,10 @@ def process_light(meteo, mindate=None, maxdate=None, outdir=DEFAULT_RESULT, jobn
     height = str(sensorheight).replace(".", "_")
     if outdir is not None:
         if _has_archive(outdir):
-            print(f"Archive présente dans {outdir}")
+            print(f"Reusing the existing simulation archive in {outdir}")
             return []
         outdir.mkdir(parents=True, exist_ok=True)
-        cache = outdir / f".pglcache_{height}_{jobname}"
-    else:
-        cache = None
+    cache = CASE_DIR / f".pglcache{height}"
 
     structure = agristructure()
     sensors = sensorgeometry(sensorheight)
@@ -57,8 +74,7 @@ def process_light(meteo, mindate=None, maxdate=None, outdir=DEFAULT_RESULT, jobn
         multithreaded=multithreaded,
     )
     estimator.always_precompute()
-    if cache is not None:
-        estimator.load_precomputation(str(cache))
+    estimator.load_precomputation(str(cache))
 
     results = []
     for timestamp, row in weather.iterrows():
@@ -81,9 +97,9 @@ def process_light(meteo, mindate=None, maxdate=None, outdir=DEFAULT_RESULT, jobn
             partial = path.with_suffix(".tmp")
             result.to_csv(partial, sep="\t")
             partial.replace(path)
-            estimator.dump_precomputation(str(cache))
+            _save_precomputation(estimator, cache)
             results.append((timestamp, str(path)))
-        print(f"Simulation terminée pour {timestamp}")
+        print(f"Simulation completed for {timestamp}")
 
     if outdir is not None and jobname is None:
         compress_irradiances(outdir)
@@ -97,19 +113,19 @@ def _process_light(args):
 
 def mt_process_light(meteo, mindate=None, maxdate=None, nbjobs=None, *, outdir=DEFAULT_RESULT,
                      sensorheight=0):
-    """Répartit les dates entre processus et consolide les fichiers du scénario."""
+    """Distribute timestamps among worker processes and combine the scenario outputs."""
     outdir = Path(outdir)
     if _has_archive(outdir):
-        print(f"Archive présente dans {outdir}")
+        print(f"Reusing the existing simulation archive in {outdir}")
         return []
 
     weather = _daylight_weather(meteo, mindate, maxdate)
     if weather.empty:
-        raise ValueError("Aucune mesure avec GHI positif pour la période demandée.")
+        raise ValueError("No measurements with positive GHI in the requested period.")
 
     workers = min(nbjobs if nbjobs is not None else (os.cpu_count() or 1), len(weather))
     if workers < 1:
-        raise ValueError("Le nombre de processus doit être positif.")
+        raise ValueError("The number of worker processes must be positive.")
     if workers == 1:
         results = [process_light(weather, outdir=outdir, jobname=0, sensorheight=sensorheight)]
     else:

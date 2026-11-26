@@ -1,31 +1,33 @@
 # Camargue 2023
 
-Le cas d’usage reconstitue l’irradiance sous les panneaux d’une parcelle de Camargue à partir d’une campagne de mesures à pas nominal de cinq minutes. Il permet de comparer les indices d’intermittence selon la résolution temporelle ou le traitement, puis de les relier au rendement.
+This case study reconstructs irradiance beneath agrivoltaic panels at a site in Camargue using field measurements taken at nominal five-minute intervals. It compares intermittency indices across sampling intervals or treatments and relates them to crop yield.
 
-## Données et paramètres
+## Data and settings
 
-| Emplacement | Contenu |
+| Location | Contents |
 | --- | --- |
-| `data/2023_PAR_c*.txt`, `data/2023_globalradiations_c*.txt` | Séries tabulées horodatées en heure locale. `c1` fournit la référence incidente (`PAR` et `Rg`), `c2` et `c3` les mesures sous panneaux. |
-| `data/clusters.csv` | Groupes de traitement, positions et répétitions de la parcelle |
-| `data/2023_Yield_comp 1.csv` | Rendement en t·ha⁻¹ par groupe et répétition |
-| `data/Meteo_c1_2023_caribu.txt`, `data/weather.txt` | Entrées conservées de la campagne |
-| `reference/` | Table d’indices historique utilisée pour le rendement et animations journalière et saisonnière |
-| `archive/` | Versions exploratoires conservées pour consultation |
+| `data/2023_PAR_c*.txt`, `data/2023_globalradiations_c*.txt` | Tab-separated time series with local timestamps. Sensor `c1` provides the incident reference measurements (`PAR` and `Rg`). Sensors `c2` and `c3` measure irradiance beneath the panels. |
+| `data/clusters.csv` | Treatment groups, positions, and field replicates |
+| `data/2023_Yield_comp 1.csv` | Yield in t·ha⁻¹ by group and replicate |
+| `data/Meteo_c1_2023_caribu.txt`, `data/weather.txt` | Inputs retained from the field campaign |
+| `reference/` | Historical index table used for yield analysis, plus daily and seasonal animations |
+| `archive/` | Exploratory versions retained for reference |
 
-La localisation est définie dans `localization.py` (43,734286° N, 4,570565° E, fuseau Europe/Paris). `generateplot.py` contient la scène 3D et la grille au sol de 100 × 30 cellules de 0,5 m. `meteo.py` prépare le rayonnement et la position du soleil et sépare les périodes de mesure à 0,9 m et à 2 m au 21 juin 2023 à midi. `data_util.py` décrit le masque de la zone étudiée et la lecture des groupes de traitement.
+The site coordinates and time zone are defined in `localization.py` (43.734286° N, 4.570565° E, Europe/Paris). `generateplot.py` defines the 3D scene and a ground grid of 100 × 30 cells, each 0.5 m across. `meteo.py` prepares irradiance and solar position data and splits the measurements taken at 0.9 m and 2 m at noon on June 21, 2023. `data_util.py` defines the study area mask and loads the treatment groups.
 
 ## Installation
 
-Pour calculer les indices à partir de simulations existantes, installer le projet depuis la racine avec `python -m pip install -e .`. Pour l’analyse de rendement, installer aussi l’extension `yield` avec `python -m pip install -e '.[yield]'`.
+To calculate indices from existing simulations, run `python -m pip install -e .` from the repository root. For yield analysis, install the `yield` extra with `python -m pip install -e '.[yield]'`.
 
-Pour simuler, préparer la météo ou superposer les panneaux sur les cartes, suivre les [instructions Conda du README principal](../../README.md#environnement-conda-complet). Cet environnement inclut aussi les dépendances de l’analyse du rendement.
+To run simulations, prepare weather inputs, or overlay panel outlines on maps, follow the [Conda installation instructions](../../README.md#full-conda-environment). This environment also includes the dependencies for yield analysis.
 
-## Rejouer l’étude
+## Reproduce the study
 
-Lancer les commandes depuis la racine du dépôt. Par défaut les fichiers produits vont dans `examples/camargue_2023/outputs/`.
+Run the commands from the repository root. By default, generated files go to `examples/camargue_2023/outputs/`.
 
-### 1. Visualiser la météo ou simuler
+Existing plots, analyses, and sensor results are in the same directory under their original folder names, including `analysis_filtered`, `timeresolution_comparison`, and `result_sensors`.
+
+### 1. Visualize weather data or run a simulation
 
 ```sh
 python -m examples.camargue_2023 heatmap --scenario weather2023
@@ -34,11 +36,13 @@ python -m examples.camargue_2023 simulate --start 2023-06-21 --end 2023-06-22 \
 python -m examples.camargue_2023 simulate --scenario weather2023 --jobs 2
 ```
 
-La date de début est incluse et la date de fin est exclue. La simulation saute les dates dont le GHI est nul ou négatif. Le scénario `weather2023` part des mesures. `clear_sky`, `cloudy` et `intermediate_sky` utilisent ASTK avec ses paramètres par défaut, une atténuation de 0,3 et une atténuation de 0,5, respectivement. `--scenario all` lance les quatre scénarios.
+The start date is inclusive and the end date is exclusive. The simulation skips timestamps where global horizontal irradiance (GHI) is zero or negative. The `weather2023` scenario uses field measurements. The `clear_sky`, `cloudy`, and `intermediate_sky` scenarios use ASTK with its default settings, an attenuation of 0.3, and an attenuation of 0.5, respectively. Use `--scenario all` to run all four scenarios.
 
-Une simulation complète peut produire plusieurs gigaoctets. Chaque scénario écrit dans son propre sous-répertoire. Une relance au même endroit reprend les TSV déjà calculés ou réutilise l’agrégat existant. Utiliser un autre répertoire de sortie si la période, la géométrie ou les paramètres changent.
+A full simulation can produce several gigabytes of output. Each scenario writes to its own subdirectory. Rerunning in the same directory reuses previously computed TSV files or the existing aggregate. Use a different output directory if the period, geometry, or parameters change.
 
-### 2. Analyser l’intermittence
+PlantGL stores its precomputed light results in `examples/camargue_2023/.pglcache0/` for the ground-level grid. Scenarios and workers reuse this cache across runs, even when `--output` points elsewhere. Other sensor heights use separate cache directories. Clear the cache for the affected height after changing the 3D scene or grid geometry.
+
+### 2. Analyze intermittency
 
 ```sh
 python -m examples.camargue_2023 analyze --mode resolution
@@ -46,24 +50,34 @@ python -m examples.camargue_2023 analyze --mode treatments
 python -m examples.camargue_2023 analyze --mode maps
 ```
 
-`resolution` correspond au point d’entrée exploratoire d’origine. Il compare les moyennes calculées à pas de 5, 15, 30 et 60 minutes à partir des séries simulées. `treatments` compare les groupes du fichier `clusters.csv` et `maps` cartographie les indicateurs. L’analyse se concentre par défaut sur la zone d’étude. `--full-grid` inclut tous les points disponibles avant la sélection éventuelle par traitement.
+The `resolution` mode reproduces the original exploratory workflow. It compares results after averaging the simulated series over intervals of 5, 15, 30, and 60 minutes. The `treatments` mode compares the groups defined in `clusters.csv`, and `maps` maps the indices. By default, the analysis is restricted to the study area. Pass `--full-grid` to include all available grid points before any treatment-based selection.
 
-Pour exploiter une campagne simulée avant la restructuration, passer le dossier existant. Ce mode lit aussi les archives `.pkl.zip`.
+By default, the analysis reads `examples/camargue_2023/outputs/result/weather2023`. It accepts existing `.pkl.zip` archives. To analyze a different scenario, pass its directory with `--results`.
 
 ```sh
-python -m examples.camargue_2023 analyze --mode resolution --results src/result/weather2023
+python -m examples.camargue_2023 analyze --mode resolution --results examples/camargue_2023/outputs/result/cloudy
 ```
 
-Chaque analyse exporte des figures et un fichier `comparison_results.csv`. Les rapports réutilisent les fichiers de phases stables présents dans leur dossier de sortie. Choisir un nouveau dossier via `--output` pour analyser d’autres données ou paramètres.
+For the default measured campaign and study-area filter, analysis uses these directories under `outputs/`.
 
-### 3. Analyser le rendement
+| Mode | Output directory |
+| --- | --- |
+| `resolution` | `timeresolution_comparison/` |
+| `treatments` | `clusters_comparison/weather2023/` |
+| `maps` | `analysis_filtered/weather2023/` |
+
+A different simulation input or `--full-grid` uses a separate folder named after the analysis mode unless you pass `--output`.
+
+Each analysis exports figures and a `comparison_results.csv` file. The reports reuse any stable-phase files in their output directory. Use `--output` to select a new directory when analyzing different data or changing parameters.
+
+### 3. Analyze crop yield
 
 ```sh
 python -m examples.camargue_2023 yield
 python -m examples.camargue_2023 yield \
-    --indices examples/camargue_2023/outputs/treatments/comparison_results.csv
+    --indices examples/camargue_2023/reference/comparison_results.csv
 ```
 
-La première commande utilise la table de référence fournie. La seconde utilise les indices par point issus de l’analyse par traitement. Le script agrège les indices par groupe et répétition, enregistre la figure d’ACP et imprime les résultats des régressions et de la sélection Lasso.
+By default, yield analysis uses the per-point table in `outputs/clusters_comparison/weather2023/comparison_results.csv` when it exists and falls back to the bundled reference table. Use `--indices` to choose a different input table. The script aggregates the indices by group and replicate, saves a principal component analysis (PCA) figure, and prints the regression and Lasso selection results.
 
-Les modules `estimate_sensor` et `sensordetection` restent exécutables avec `python -m examples.camargue_2023.estimate_sensor` et `python -m examples.camargue_2023.sensordetection` pour les comparaisons et l’ajustement de position des capteurs. Le [guide des indicateurs](../../docs/analyse.md) décrit les conventions de données de la bibliothèque.
+Run `python -m examples.camargue_2023.estimate_sensor` for sensor comparisons and `python -m examples.camargue_2023.sensordetection` to refine sensor positions. Sensor comparisons reuse `outputs/result_sensors/sensor_simulation.csv` when available. The fine sensor search resumes from the matching files in `outputs/optimization_result/fine/`. The [indicator guide](../../docs/analyse.md) describes the library's data conventions.

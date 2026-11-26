@@ -1,4 +1,4 @@
-"""Corrélations, analyses en composantes principales et figures associées."""
+"""Correlation analysis, principal component analysis, and plots."""
 
 import numpy as np
 import pandas as pd
@@ -22,10 +22,10 @@ def plot_correlation_matrix(df, columns, names = None, method="pearson", ax = No
     if names is None:
         names = columns
 
-    # --- sélection des colonnes ---
+    # --- Column selection ---
     data = df[columns]
 
-    # --- corrélation ---
+    # --- Correlation ---
     corr = data.corr(method=method)
 
     # --- plot ---

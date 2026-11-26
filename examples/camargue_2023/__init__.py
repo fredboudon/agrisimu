@@ -1,1 +1,1 @@
-"""Campagne agrivoltaïque de Camargue en 2023."""
+"""Camargue 2023 agrivoltaic field campaign."""

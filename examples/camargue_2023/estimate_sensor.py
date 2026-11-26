@@ -25,7 +25,7 @@ RESOLUTION = 0.01  # in meters
 #sensordict = {'c2': Vector3(35.43,0.19,2), 'c3': Vector3(34.64,2.89,2)}
 sensordict = {'c2': Vector3(27.3,4.63,2), 'c3': Vector3(20.54,7.82,2)}
 
-""" Ne considerez que du '17-May' au '31-Oct' """
+"""Use only the period from May 17 through October 31."""
 def process_sensors(meteo, mindate = None, maxdate = None, view = False, outdir = OUTPUT_DIR / 'result_sensors'):
     """
     Process light simulation for an agrivoltaic scene over a specified date range.
@@ -130,7 +130,7 @@ def process_sensors(meteo, mindate = None, maxdate = None, view = False, outdir 
     return results
 
 def resample(data, target_length = '1h'):
-    """Resample une série temporelle à une longueur cible en utilisant l'interpolation linéaire"""
+    """Average sensor readings over each target interval."""
     #firstprop = ['height', 'azimuth', 'zenith', 'elevation']
     meanprop = ['simulated_c2', 'simulated_c3',  'c2', 'c3']
     data = data[meanprop]
@@ -144,7 +144,7 @@ def resample(data, target_length = '1h'):
     return df
 
 def resample_sum(data, target_length = '1D'):
-    """Resample une série temporelle à une longueur cible en utilisant l'interpolation linéaire"""
+    """Sum sensor readings over each target interval and convert to MJ/m²."""
     sumprop = ['simulated_c2', 'simulated_c3',  'c2', 'c3']
     data = data[sumprop]
     agg = {}
@@ -152,7 +152,7 @@ def resample_sum(data, target_length = '1D'):
     agg.update({ prop : 'sum' for prop in sumprop if prop in data.columns})
     df = data.resample(target_length).agg(agg).dropna(subset=['simulated_c2'])
     for col in sumprop:
-        df[col] = df[col] * 5 * 60 * 1e-6  # convertir de W/m² à MJ/m² en multipliant par le nombre de secondes dans la période (5min = 300s) et en divisant par 1e6 pour convertir de J à MJ
+        df[col] = df[col] * 5 * 60 * 1e-6  # Convert W/m² to MJ/m² using the sampling interval (5 min = 300 s), then divide by 1e6 to convert J to MJ
     for col in df.columns:
         if col  in ['index', 'row', 'column']:
             df[col] = df[col].astype(data[col].dtype)
@@ -171,7 +171,7 @@ def plot_comparison(results, ci, coloring = 'h', label = 'Global Radiation (W m$
         rmse = np.sqrt(((x - y) ** 2).mean())
         bias = (y - x).mean()
 
-        # R² (coefficient de détermination)
+        # R² (coefficient of determination)
         r2 = r2_score(x, y)
 
         plt.figure(figsize=(6,5))
@@ -180,8 +180,8 @@ def plot_comparison(results, ci, coloring = 'h', label = 'Global Radiation (W m$
         minh = min(colorindex)
         maxh = max(colorindex)
 
-        cmap = plt.get_cmap('viridis', maxh-minh+1)  # 24 couleurs
-        bounds = np.arange(minh-0.5, maxh+0.5, 1)   # bornes pour centrer sur entiers
+        cmap = plt.get_cmap('viridis', maxh-minh+1)  # 24 colors
+        bounds = np.arange(minh-0.5, maxh+0.5, 1)   # Bin edges centered on integers
         norm = BoundaryNorm(bounds, cmap.N)
 
         sc = plt.scatter(x, y,c=colorindex,
@@ -195,14 +195,14 @@ def plot_comparison(results, ci, coloring = 'h', label = 'Global Radiation (W m$
         xmin, xmax = x.min(), x.max()
         plt.plot([xmin, xmax], [xmin, xmax], 'k--')
 
-                # --- Texte des métriques ---
+                # --- Metric text ---
         textstr = (
             f'RMSE = {rmse:.2f}\n'
             f'R² = {r2:.2f}\n'
             f'Bias = {bias:.2f}'
         )
 
-        # Position en coordonnées axes (0-1)
+        # Position in axes coordinates (0–1)
         plt.text(
             0.05, 0.95, textstr,
             transform=plt.gca().transAxes,
@@ -267,11 +267,11 @@ def plot_result(results, outdir = OUTPUT_DIR / 'result_sensors'):
             ax.plot(oneday.index, oneday['simulated_' + ci],
                     color='black', linewidth=1.2, label='simulated')
 
-            # titres colonnes (dates)
+            # Column titles (dates)
             if i == 0:
                 ax.set_title(day.replace('/', '-'), fontsize=10)
 
-            # labels lignes (c2, c3 à droite)
+            # Row labels (c2 and c3 on the right)
             if j == 3:
                 ax.text(1.05, 0.5, ci, transform=ax.transAxes,
                         rotation=90, va='center')
@@ -279,15 +279,15 @@ def plot_result(results, outdir = OUTPUT_DIR / 'result_sensors'):
             ax.xaxis.set_major_formatter(mdates.DateFormatter('%H'))
             ax.xaxis.set_major_locator(mdates.HourLocator(byhour=[0,6,12,18,24]))
 
-            # alléger les axes
+            # Simplify the axes
             ax.spines['top'].set_visible(False)
             ax.spines['right'].set_visible(False)
 
-    # labels globaux
+    # Shared axis labels
     fig.text(0.5, 0.04, 'Time (h)', ha='right')
     fig.text(0.04, 0.5, r'Global radiation (W m$^{-2}$)', va='center', rotation='vertical')
 
-    # légende globale (une seule)
+    # One shared legend
     handles, labels = axarr[0,0].get_legend_handles_labels()
     fig.legend(handles, labels,
            loc='upper center',

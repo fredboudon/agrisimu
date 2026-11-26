@@ -108,7 +108,7 @@ def plot_composite_fft_periods(n=256, dt=1.0):
             pmax = periods.max()
             ax_sp.set_xlim(pmax, pmin)
 
-            # ticks en périodes simples
+            # Tick marks at common periods
             candidate_ticks = np.array([1, 2, 4, 8, 16, 32, 64, 128, 256], dtype=float)
             ticks = candidate_ticks[(candidate_ticks >= pmin) & (candidate_ticks <= pmax)]
             if len(ticks) > 0:

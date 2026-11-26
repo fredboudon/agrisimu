@@ -1,4 +1,4 @@
-"""Comparaison de séries d’irradiance, indicateurs et graphiques."""
+"""Irradiance time-series comparisons, indices, and plots."""
 
 from math import floor
 import pickle
@@ -48,7 +48,7 @@ from .timeseries import (
 
 
 def _plot_distributions(ax, groups, positions):
-    """Trace les distributions disponibles aux positions des groupes."""
+    """Plot available distributions at their group positions."""
     valid = []
     for position, group in zip(positions, groups):
         values = np.asarray(group, dtype=float)
@@ -65,32 +65,32 @@ def estimate_meanvar_metrics(S):
     Parameters
     ----------
     S : ndarray (n_squares, n_times)
-        Taux d'ombrage (1 - irradiance_transmise)
+        Shading fraction (1 - transmitted irradiance fraction)
 
     Returns
     -------
     mean_S : ndarray (n_squares,)
-        Moyenne temporelle du taux d'ombrage
+        Temporal mean of the shading fraction
 
     var_S : ndarray (n_squares,)
-        Variance temporelle du taux d'ombrage
+        Temporal variance of the shading fraction
 
     """
 
-    # Moyenne d’ombrage
+    # Mean shading
     mean_S = np.mean(S, axis=1)
 
-    # Variabilité totale
+    # Total variability
     var_S = np.var(S, axis=1)
 
 
     return mean_S, var_S
 
 def estimate_var_metrics(dS = None, dt = 1):
-    # variance des variations temporelles (intermittence)
+    # Variance of temporal changes (intermittency)
     var_dS = np.var(dS, axis=1)
 
-    # moyenne absolue des variations temporelles (quantité d'intermittence)
+    # Mean absolute temporal change (amount of intermittency)
     mean_abs_dS = np.mean(np.abs(dS), axis=1)/dt
 
     return var_dS, mean_abs_dS
@@ -137,7 +137,7 @@ def estimate_regression_residuals(S, meteo):
 
     azimuth = np.radians(meteo['azimuth'].values)
     elevation = np.radians(meteo['elevation'].values)
-    assert S.shape[1] == len(meteo), "Le nombre de points temporels dans S doit correspondre au nombre de lignes dans meteo"
+    assert S.shape[1] == len(meteo), "The number of time points in S must match the number of rows in meteo"
     X = np.column_stack([
         np.sin(elevation),
         np.cos(elevation),
@@ -166,7 +166,7 @@ def estimate_regression_residuals(S, meteo):
     return S_pred, residuals, R2
 
 def analyze_irradiance_data(plot_irradiances, meteo=None, output='analysis', imgsize=None, *, panels=None, examples=None, reference_bands=None):
-    """Produit les cartes et les indices pour des séries synchronisées."""
+    """Produce maps and indices for synchronized time series."""
     import os
     if not os.path.exists(output):
         os.makedirs(output, exist_ok=True)
@@ -184,7 +184,7 @@ def analyze_irradiance_data(plot_irradiances, meteo=None, output='analysis', img
     Shading = 1 - TrIrradiance
 
     if len(timeline) < 2:
-        raise ValueError('L’analyse nécessite au moins deux dates.')
+        raise ValueError('Analysis requires at least two timestamps.')
     print('Timeline from', timeline[0], 'to', timeline[-1], 'with', len(timeline), 'points')
     dt = (timeline[1] - timeline[0]).total_seconds()
     print('Time step between measurements (seconds):', dt)
@@ -377,14 +377,14 @@ def analyze_irradiance_data(plot_irradiances, meteo=None, output='analysis', img
 
                 fig = plt.figure(figsize=(12, 8))
 
-                # Ligne du haut : 2 figures centrées
-                ax0 = plt.subplot2grid((2, 6), (0, 1), colspan=2)  # colonnes 1-2
-                ax1 = plt.subplot2grid((2, 6), (0, 3), colspan=2)  # colonnes 3-4
+                # Top row with two centered plots
+                ax0 = plt.subplot2grid((2, 6), (0, 1), colspan=2)  # columns 1-2
+                ax1 = plt.subplot2grid((2, 6), (0, 3), colspan=2)  # columns 3-4
 
-                # Ligne du bas : 3 figures réparties
-                ax2 = plt.subplot2grid((2, 6), (1, 0), colspan=2)  # colonnes 0-1
-                ax3 = plt.subplot2grid((2, 6), (1, 2), colspan=2)  # colonnes 2-3
-                ax4 = plt.subplot2grid((2, 6), (1, 4), colspan=2)  # colonnes 4-5
+                # Bottom row with three evenly spaced plots
+                ax2 = plt.subplot2grid((2, 6), (1, 0), colspan=2)  # columns 0-1
+                ax3 = plt.subplot2grid((2, 6), (1, 2), colspan=2)  # columns 2-3
+                ax4 = plt.subplot2grid((2, 6), (1, 4), colspan=2)  # columns 4-5
 
                 axes = [ax0, ax1, ax2, ax3, ax4]
 
@@ -438,15 +438,15 @@ def plot_histogram_comparison(data_per_cluster):
     import scikit_posthocs as sp
     from scipy.stats import kruskal
 
-    # --- Préparation données ---
+    # --- Data preparation ---
     clusters = sorted(data_per_cluster.keys())
     data = [data_per_cluster[c].mean(axis=1) for c in clusters]
 
-    # format long pour seaborn
+    # Long format for seaborn
     values = np.concatenate(data)
     groups = np.concatenate([[f'Cluster {c}'] * len(d) for c, d in zip(clusters, data)])
 
-    # --- Style publication ---
+    # --- Publication styling ---
     sns.set(style="whitegrid", context="paper", font_scale=1.2)
 
     fig, ax = plt.subplots(figsize=(6, 4))
@@ -458,13 +458,13 @@ def plot_histogram_comparison(data_per_cluster):
                 cut=0,
                 ax=ax)
 
-    # --- Test global ---
+    # --- Overall test ---
     H, p_global = kruskal(*data)
 
-    # --- Post-hoc Dunn avec correction FDR ---
+    # --- Post hoc Dunn test with FDR correction ---
     p_matrix = sp.posthoc_dunn(data, p_adjust='fdr_bh')
 
-    # --- Fonction annotation ---
+    # --- Annotation function ---
     def significance_label(p):
         if p < 1e-3:
             return '***'
@@ -473,9 +473,9 @@ def plot_histogram_comparison(data_per_cluster):
         elif p < 0.05:
             return '*'
         else:
-            return None  # on n'affiche pas les ns
+            return None  # Skip non-significant results
 
-    # --- Ajout annotations ---
+    # --- Add annotations ---
     y_max = values.max()
     y_min = values.min()
     height = y_max - y_min
@@ -501,7 +501,7 @@ def plot_histogram_comparison(data_per_cluster):
                     label,
                     ha='center', va='bottom')
 
-            current_y += offset * 1.8  # espace vertical
+            current_y += offset * 1.8  # Vertical spacing
 
     # --- Labels ---
     ax.set_title(f"Cluster comparison (Kruskal-Wallis p = {p_global:.2e})")
@@ -521,7 +521,7 @@ def compare_clusters(irradiances_per_clusters, cluster_name = 'Cluster', cluster
         os.makedirs(output, exist_ok=True)
 
     if not irradiances_per_clusters:
-        raise ValueError('Aucun groupe à comparer.')
+        raise ValueError('No groups to compare.')
     dt = {}
 
     meanvar_metrics = True
@@ -545,7 +545,7 @@ def compare_clusters(irradiances_per_clusters, cluster_name = 'Cluster', cluster
         Coords[clusterid] = _coords
         Timeline[clusterid] = _timeline
         if len(_timeline) < 2:
-            raise ValueError(f'Le groupe {clusterid} contient moins de deux dates.')
+            raise ValueError(f'Group {clusterid} contains fewer than two timestamps.')
         dt[clusterid] = (_timeline[1] - _timeline[0]).total_seconds()
 
     if cluster_order is None:
@@ -685,14 +685,14 @@ def compare_clusters(irradiances_per_clusters, cluster_name = 'Cluster', cluster
 
         fig = plt.figure(figsize=(12, 8))
 
-        # Ligne du haut : 2 figures centrées
-        ax0 = plt.subplot2grid((2, 6), (0, 1), colspan=2)  # colonnes 1-2
-        ax1 = plt.subplot2grid((2, 6), (0, 3), colspan=2)  # colonnes 3-4
+        # Top row with two centered plots
+        ax0 = plt.subplot2grid((2, 6), (0, 1), colspan=2)  # columns 1-2
+        ax1 = plt.subplot2grid((2, 6), (0, 3), colspan=2)  # columns 3-4
 
-        # Ligne du bas : 3 figures réparties
-        ax2 = plt.subplot2grid((2, 6), (1, 0), colspan=2)  # colonnes 0-1
-        ax3 = plt.subplot2grid((2, 6), (1, 2), colspan=2)  # colonnes 2-3
-        ax4 = plt.subplot2grid((2, 6), (1, 4), colspan=2)  # colonnes 4-5
+        # Bottom row with three evenly spaced plots
+        ax2 = plt.subplot2grid((2, 6), (1, 0), colspan=2)  # columns 0-1
+        ax3 = plt.subplot2grid((2, 6), (1, 2), colspan=2)  # columns 2-3
+        ax4 = plt.subplot2grid((2, 6), (1, 4), colspan=2)  # columns 4-5
 
         _plot_distributions(ax0, Iq, positions)
         ax0.set_xticks(positions, [f'{cluster_name} {c}' for c in clusters])
@@ -740,7 +740,7 @@ def compare_clusters(irradiances_per_clusters, cluster_name = 'Cluster', cluster
         }
         df = pd.DataFrame(df)
 
-        index_columns = ["Iq", "If", "It", "Isp", "Is"]   # adapte à tes colonnes
+        index_columns = ["Iq", "If", "It", "Isp", "Is"]   # Adjust to match the input columns
         cluster_column = "cluster"
         if len(df[index_columns].dropna()) < 2:
             return df
@@ -772,7 +772,7 @@ def compare_clusters(irradiances_per_clusters, cluster_name = 'Cluster', cluster
         plt.savefig(os.path.join(output, 'pca_intermittence_index.png'))
         plt.close()
 
-        index_columns = ["Iq", "If", "It", "Isp", "Is", "mean_irradiance", "mean_shading"]   # adapte à tes colonnes
+        index_columns = ["Iq", "If", "It", "Isp", "Is", "mean_irradiance", "mean_shading"]   # Adjust to match the input columns
         pca_results = compute_pca_with_clusters(
             df,
             index_columns=index_columns,
@@ -792,14 +792,14 @@ def compare_clusters(irradiances_per_clusters, cluster_name = 'Cluster', cluster
             #print({cid:len(Iqi) for cid,Iqi in zip(clusters,Iq)})
             fig = plt.figure(figsize=(15, 8))
 
-            # Ligne du haut : 2 figures centrées
-            ax0 = plt.subplot2grid((2, 6), (0, 1), colspan=2)  # colonnes 1-2
-            ax1 = plt.subplot2grid((2, 6), (0, 3), colspan=2)  # colonnes 3-4
+            # Top row with two centered plots
+            ax0 = plt.subplot2grid((2, 6), (0, 1), colspan=2)  # columns 1-2
+            ax1 = plt.subplot2grid((2, 6), (0, 3), colspan=2)  # columns 3-4
 
-            # Ligne du bas : 3 figures réparties
-            ax2 = plt.subplot2grid((2, 6), (1, 0), colspan=2)  # colonnes 0-1
-            ax3 = plt.subplot2grid((2, 6), (1, 2), colspan=2)  # colonnes 2-3
-            ax4 = plt.subplot2grid((2, 6), (1, 4), colspan=2)  # colonnes 4-5
+            # Bottom row with three evenly spaced plots
+            ax2 = plt.subplot2grid((2, 6), (1, 0), colspan=2)  # columns 0-1
+            ax3 = plt.subplot2grid((2, 6), (1, 2), colspan=2)  # columns 2-3
+            ax4 = plt.subplot2grid((2, 6), (1, 4), colspan=2)  # columns 4-5
             for indicename, df_indice, ax in [('Iq', pd.DataFrame({cid:Iqi for cid,Iqi in zip(clusters,Iq)}), ax0),
                                         ('If', pd.DataFrame({cid:phase_fraction_per_cluster[cid] for cid in clusters}), ax3),
                                         ('It', pd.DataFrame({cid:phase_mean_length_per_cluster[cid] for cid in clusters}), ax2),

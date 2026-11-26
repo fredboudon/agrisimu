@@ -19,9 +19,9 @@ import matplotlib.pyplot as plt
 DEBUG = False
 RESOLUTION = 0.1
 
-# pilone en bas a gauche 1,5m en X et 1m en Y
-# en carré                3           2
-# Le suivant              3           8
+# Lower-left support post at 1.5 m on the X axis and 1 m on the Y axis
+# square layout                3           2
+# next              3           8
 
 localisation = {'latitude':43.734286, 'longitude':4.570565, 'altitude': 0, 'timezone': 'Europe/Paris'}
 # north = -90
@@ -84,7 +84,7 @@ sensordict = { 'c2' : Vector3(57*0.5,9*0.5,2), 'c3' : Vector3(43*0.5,15*0.5,2) }
 meteo = get_meteo('c1')
 ref_data = { 'c2': read_meteo('2023_globalradiations_c2.txt')['Rg'], 'c3': read_meteo('2023_globalradiations_c3.txt')['Rg'] }
 
-""" Ne considerez que du '17-May' au '31-Oct' """
+"""Use only the period from May 17 through October 31."""
 def process_light(mindate = date(5,1,0), maxdate = date(11, 1,0), sensordict=sensordict, meteo=meteo, view = True, outdir = None, verbose = True):
     if outdir and not os.path.exists(outdir):
         os.makedirs(outdir, exist_ok=True)
