@@ -25,6 +25,13 @@ To analyze time series with Python 3.10 or later, install the library and the de
 python -m pip install -e .
 ```
 
+## Download the Camargue 2023 data
+
+Download the PlantGL cache and the irradiance ZIP for the scenario you need. Verify the cache against the SHA-256 in the Camargue guide and the irradiance ZIP against the checksum manifest attached to the release. [Camargue 2023 release](https://github.com/fredboudon/agrisimu/releases/tag/camargue-2023) · [Download and verification commands](examples/camargue_2023/README.md#download-and-restore-release-data)
+
+- **PlantGL cache.** Place the verified `camargue-2023-pglcache0.tar.zst` at the repository root. The simulation extracts it into `examples/camargue_2023/.pglcache0/` when it needs the cache and that directory is absent.
+- **Irradiance maps.** Keep each verified ZIP compressed and copy it to `examples/camargue_2023/outputs/result/<scenario>/global_irradiances.pkl.zip`. Analysis uses `weather2023` by default.
+
 ## Calculate the spectral intermittency index
 
 The spectral intermittency index measures the fraction of spectral energy in shading fluctuations above a frequency threshold. This example uses a 300-second sampling interval and a frequency threshold corresponding to a six-hour period.

@@ -164,3 +164,4 @@ cython_debug/
 # Sorties de la campagne Camargue 2023
 /examples/camargue_2023/outputs/
 /examples/camargue_2023/.pglcache*/
+camargue-2023-pglcache*.tar.zst

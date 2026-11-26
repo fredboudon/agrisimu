@@ -21,6 +21,58 @@ To calculate indices from existing simulations, run `python -m pip install -e .`
 
 To run simulations, prepare weather inputs, or overlay panel outlines on maps, follow the [Conda installation instructions](../../README.md#full-conda-environment). This environment also includes the dependencies for yield analysis.
 
+## Download and restore release data
+
+The release includes the ground-level PlantGL cache, four irradiance ZIPs, and a manifest with the ZIP checksums and restoration paths. Download the cache to reuse PlantGL precomputations, the maps to analyze existing results, or both. Run the commands below from the repository root. [Camargue 2023 release](https://github.com/fredboudon/agrisimu/releases/tag/camargue-2023) · [Irradiance checksum manifest](https://github.com/fredboudon/agrisimu/releases/download/camargue-2023/camargue-2023-irradiance-manifest.md)
+
+Download to a temporary directory so that verification happens before you copy any files into the case study.
+
+```sh
+release_url=https://github.com/fredboudon/agrisimu/releases/download/camargue-2023
+download_dir=$(mktemp -d)
+```
+
+The examples use `shasum -a 256`. On systems with `sha256sum`, use `sha256sum FILE` to print a checksum or `sha256sum -c -` to check one from standard input.
+
+### PlantGL cache
+
+```sh
+cache_asset=camargue-2023-pglcache0.tar.zst
+cache_sha256=d519dc65e5119b1f7959bf2c22d03fde02bc3b02409298a24b26fcd8f454022b
+curl -fL "$release_url/$cache_asset" -o "$download_dir/$cache_asset" &&
+printf '%s  %s\n' "$cache_sha256" "$download_dir/$cache_asset" | shasum -a 256 -c -
+```
+
+After the check reports `OK`, copy the archive to the repository root.
+
+```sh
+cp -n "$download_dir/$cache_asset" .
+```
+
+When a simulation needs the cache and `examples/camargue_2023/.pglcache0/` is absent, it automatically extracts the archive there using `zstd`, included in the Conda environment. You can also keep the verified archive directly in `examples/camargue_2023/`. If a cache directory already exists, the simulation uses it. Use only trusted archives because PlantGL loads Python pickle files.
+
+### Irradiance maps
+
+Choose `weather2023`, `clear_sky`, `cloudy`, or `intermediate_sky` and repeat these steps for each scenario you need.
+
+```sh
+scenario=weather2023
+asset="camargue-2023-irradiance-$scenario.pkl.zip"
+curl -fL "$release_url/$asset" -o "$download_dir/$asset" &&
+shasum -a 256 "$download_dir/$asset"
+```
+
+Compare the printed checksum with the matching row in the release manifest. Once it matches, copy the ZIP to the scenario directory under its expected filename. `cp -n` keeps any existing file at the destination. [Irradiance checksum manifest](https://github.com/fredboudon/agrisimu/releases/download/camargue-2023/camargue-2023-irradiance-manifest.md)
+
+```sh
+result_dir="examples/camargue_2023/outputs/result/$scenario"
+mkdir -p "$result_dir"
+cp -n "$download_dir/$asset" "$result_dir/global_irradiances.pkl.zip"
+python -m examples.camargue_2023 analyze --mode resolution --results "$result_dir"
+```
+
+The analysis reads the ZIP directly. For `weather2023`, you can omit `--results`.
+
 ## Reproduce the study
 
 Run the commands from the repository root. By default, generated files go to `examples/camargue_2023/outputs/`.
@@ -40,7 +92,7 @@ The start date is inclusive and the end date is exclusive. The simulation skips 
 
 A full simulation can produce several gigabytes of output. Each scenario writes to its own subdirectory. Rerunning in the same directory reuses previously computed TSV files or the existing aggregate. Use a different output directory if the period, geometry, or parameters change.
 
-PlantGL stores its precomputed light results in `examples/camargue_2023/.pglcache0/` for the ground-level grid. Scenarios and workers reuse this cache across runs, even when `--output` points elsewhere. Other sensor heights use separate cache directories. Clear the cache for the affected height after changing the 3D scene or grid geometry.
+PlantGL stores its precomputed light results in `examples/camargue_2023/.pglcache0/` for the ground-level grid. Scenarios and workers reuse this cache across runs, even when `--output` points elsewhere. Other sensor heights use separate cache directories. After changing the 3D scene or grid geometry, remove both the cache directory and any archive for the affected height before recomputing.
 
 ### 2. Analyze intermittency
 

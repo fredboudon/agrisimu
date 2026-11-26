@@ -9,6 +9,7 @@ from openalea.plantgl.all import LightEstimator, eShapeBased, eTriangleProjectio
 
 from agrisimu.data_util import compress_irradiances
 
+from .cache_archive import restore_cache
 from .data_util import format_values
 from .generateplot import agristructure, sensorgeometry
 from .localization import localisation
@@ -74,6 +75,7 @@ def process_light(meteo, mindate=None, maxdate=None, outdir=DEFAULT_RESULT, jobn
         multithreaded=multithreaded,
     )
     estimator.always_precompute()
+    restore_cache(cache)
     estimator.load_precomputation(str(cache))
 
     results = []
@@ -129,6 +131,8 @@ def mt_process_light(meteo, mindate=None, maxdate=None, nbjobs=None, *, outdir=D
     if workers == 1:
         results = [process_light(weather, outdir=outdir, jobname=0, sensorheight=sensorheight)]
     else:
+        height = str(sensorheight).replace(".", "_")
+        restore_cache(CASE_DIR / f".pglcache{height}")
         batch_size = (len(weather) + workers - 1) // workers
         batches = [
             (weather.iloc[offset:offset + batch_size], outdir, job, sensorheight)
