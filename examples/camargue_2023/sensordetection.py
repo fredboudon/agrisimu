@@ -1,18 +1,17 @@
-
 import pandas
 import numpy as np
-from openalea.plantgl.all import *
+from openalea.plantgl.all import LightEstimator, Vector3
 
-import os, sys
+import os
 
-from importlib import reload
-import generateplot; reload(generateplot)
-from generateplot import *
+from .generateplot import MAPLENGTH, MAPWIDTH, agristructure
 
-import data_util; reload(data_util)
-from data_util import *
+from agrisimu.data_util import toimage
 
-from localization import *
+from .data_util import plot_meteo
+from .paths import OUTPUT_DIR
+
+from .localization import localisation
 
 import time
 from os.path import join
@@ -39,12 +38,12 @@ def estimate_sensors(meteo, sensordict=sensordict, verbose=True):
     # an agrivoltaic scene (generate plot)
     height = 0.0
     scene = agristructure()
-    
+
     l = LightEstimator(scene)
     l.localize(name = 'Camargue', **localisation)
 
     results_date = []
-    results_values = {} 
+    results_values = {}
     t = time.time()
 
     print('Set sensor to positions:', sensordict)
@@ -56,7 +55,7 @@ def estimate_sensors(meteo, sensordict=sensordict, verbose=True):
     if verbose:
         print('Added', len(l.sensors), 'sensors')
 
-    
+
     i = 0
     for cdate, row in meteo.iterrows():
             i += 1
@@ -70,7 +69,7 @@ def estimate_sensors(meteo, sensordict=sensordict, verbose=True):
                 if sensorid not in results_values:
                     results_values[sensorid] = []
                 results_values[sensorid].append(irradiance)
-                
+
     if verbose:
         print('Done '+str(len(results_date))+' simulations in', time.time() - t, 'seconds')
     result ={'date_time': results_date}
@@ -120,7 +119,7 @@ def bruteforce_argmax(a):
                 ri, rj = i,j
     return ri, rj
 
-def optimize_sensor_position(sensordict=sensordict, meteo= None, step = 0.02, rangetotest = 1, shift = 0, multithreading = True, outdir='optimization_result'):
+def optimize_sensor_position(sensordict=sensordict, meteo= None, step = 0.02, rangetotest = 1, shift = 0, multithreading = True, outdir=OUTPUT_DIR / 'optimization_result'):
     from openalea.plantgl.all import norm
     best_positions = {}
     nbjobs = multiprocessing.cpu_count() * 5
@@ -167,7 +166,7 @@ def optimize_sensor_position(sensordict=sensordict, meteo= None, step = 0.02, ra
         print('Load optimization from',resultfnames)
         errormap = { sensorid : np.load(fname+'.npy') for sensorid, fname in resultfnames.items() }
         firstmap = list(errormap.values())[0]
-        lastposition = (firstmap.shape[0]-1,firstmap.shape[1]) 
+        lastposition = (firstmap.shape[0]-1,firstmap.shape[1])
         for sensorid in sensordict.keys():
             for dx, dy in itertools.product(range(0,errormap[sensorid].shape[0]), range(0,errormap[sensorid].shape[1])):
                     if errormap[sensorid][dx,dy] < 0 :
@@ -235,13 +234,13 @@ def optimize_sensor_position(sensordict=sensordict, meteo= None, step = 0.02, ra
         for fname in [fname_r, join(outdir,'irradiance_error_map_loc_'+sensorid+'_last')]:
             np.save(fname+'.npy', errormap[sensorid])
             print("Save",repr(fname+'.png'))
-            toimage(errormap[sensorid].T, fname=fname+'.png', vmin=errormap[sensorid].min(), 
+            toimage(errormap[sensorid].T, fname=fname+'.png', vmin=errormap[sensorid].min(),
                     yticklabels=list(map(lambda x : str(round(x,2)),np.arange(tosensorpos(0,0,sensorid).x,tosensorpos(-1,0,sensorid).x+1e-3,(max(xdecalvalues) - min(xdecalvalues))/10))),
                     xticklabels=list(map(lambda x : str(round(x,2)),np.arange(tosensorpos(0,0,sensorid).y,tosensorpos(0,-1,sensorid).y+1e-3,(max(ydecalvalues) - min(ydecalvalues))/10))),
                     markpixel=[[c[0],c[1],'black'] for c in [best_coords[sensorid]]]+[[c[0],c[1],'white'] for c in [initposindex[sensorid]]])
 
         figsize = (4,4)
-        fname_view = join(outdir,'view_'+sensorid+'_'+'_'.join(map(lambda x : str(round(x,3)),best_positions[sensorid]))) 
+        fname_view = join(outdir,'view_'+sensorid+'_'+'_'.join(map(lambda x : str(round(x,3)),best_positions[sensorid])))
         for fname in [fname_view, join(outdir,'view_'+sensorid+'_last')]:
             plot_meteo(best_sensor_result, best_sensor_result[sensorid], polar=True, cmap='binary_r', marker='.', blocking=False, colorbar = False, size=figsize)
             plt.savefig(fname+'.png')
@@ -254,7 +253,7 @@ def optimize_sensor_position(sensordict=sensordict, meteo= None, step = 0.02, ra
             plt.savefig(fname+'_target.png')
             plt.close()
 
-        fname_view = join(outdir,'view_'+sensorid+'_init_'+'_'.join(map(lambda x : str(round(x,3)),best_positions[sensorid]))) 
+        fname_view = join(outdir,'view_'+sensorid+'_init_'+'_'.join(map(lambda x : str(round(x,3)),best_positions[sensorid])))
         for fname in [fname_view, join(outdir,'view_'+sensorid+'_init_last')]:
                 plot_meteo(initial_sensor_result, initial_sensor_result[sensorid], polar=True, cmap='binary_r', marker='.', blocking=False, colorbar = False, size=figsize)
                 plt.savefig(fname+'.png')
@@ -269,19 +268,15 @@ def optimize_sensor_position(sensordict=sensordict, meteo= None, step = 0.02, ra
 
     return best_positions
 
-def optimize_sensor_position_fullmap(sensordict=sensordict, meteo= None, step = 0.5,  multithreading = True, outdir='optimization_result'):
-    return optimize_sensor_position(sensordict=sensordict, meteo= meteo, step = step, 
+def optimize_sensor_position_fullmap(sensordict=sensordict, meteo= None, step = 0.5,  multithreading = True, outdir=OUTPUT_DIR / 'optimization_result'):
+    return optimize_sensor_position(sensordict=sensordict, meteo= meteo, step = step,
                                     rangetotest = None, shift = step/2, multithreading = multithreading, outdir=outdir)
 
 
-if __name__ == '__main__':
-    from meteo import *
-    setup_meteo()
-    #sensordictg = optimize_sensor_position_fullmap(outdir='optimization_result/fullmap')
-    #sensordict = optimize_sensor_position(sensordict, rangetotest=3, step=0.05, outdir='optimization_result/coarse')
-    #sensordict = optimize_sensor_position(sensordict, rangetotest=1, step=0.02, outdir='optimization_result/coarse')
-    sensordict = optimize_sensor_position(sensordict, rangetotest=0.2, step=0.01, meteo=clearskyQ200,outdir='optimization_result/fine')
-    #sensors = estimate_sensors(clearsky)
-    #plot_meteo(sensors, sensors['c2'], polar=True, cmap='binary_r', marker='.')
-    pass
+if __name__ == "__main__":
+    from .meteo import setup_meteo
 
+    optimize_sensor_position(
+        sensordict, rangetotest=0.2, step=0.01, meteo=setup_meteo().clearskyQ200,
+        outdir=OUTPUT_DIR / "optimization_result" / "fine",
+    )

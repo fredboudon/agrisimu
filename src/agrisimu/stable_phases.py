@@ -195,7 +195,7 @@ def segment_stable_phases(
                 for s, e in zip(starts, ends):
                     print(f"  Segment from t={t_block[s]:.1f} to t={t_block[e-1]:.1f} min, duration={t_block[e-1] - t_block[s]:.1f} min in block from t={t_block[0]:.1f} to t={t_block[-1]:.1f} min")
                 print(f"  Found {len(starts)} initial segments in block, max duration={np.max(t_block[ends-1] - t_block[starts]):.1f} min")
-            
+
             assert np.max(t_block[ends-1] - t_block[starts]) < 24 * 60, "Block duration seems too long, check timeline and dt"
 
             # --- merge similar neighboring segments on raw signal ---
@@ -277,16 +277,7 @@ def segment_stable_phases_simple(S, timeline, dt,
             S_block = S_i[block]
             t_block = t[block]
 
-            # --- variance glissante ---
-            std = rolling_std(S_block, window)
-
-            # alignement (centré)
-            pad = window // 2
-            std_full = np.full(len(S_block), np.nan)
-            std_full[pad:-pad] = std
-
-            # --- seuil adaptatif ---
-            #thresh = 0.05 #np.nanpercentile(std_full, q)
+            std_full = rolling_std_centered_edges(S_block, window)
 
             stable = std_full < thresh
             stable[np.isnan(stable)] = False
@@ -321,6 +312,9 @@ def segment_stable_phases_simple(S, timeline, dt,
             plots_all.append(np.full(len(durations), i, dtype=np.int32))
             starts_all.append(starts_global)
             ends_all.append(ends_global)
+
+    if not durations_all:
+        return np.array([]), np.array([]), *(np.array([], dtype=int) for _ in range(3))
 
     return (
         np.concatenate(durations_all),
@@ -428,7 +422,7 @@ def build_spatial_map(df_indices, coords, column, shape=None, fill_value=np.nan)
 import matplotlib.pyplot as plt
 
 def plot_stable_phase_distribution(stable_phases):
-    
+
     plt.scatter(stable_phases["durations"], stable_phases["means"], marker='.')
     plt.ylabel("Mean shading")
     plt.xlabel("Duration (m)")
@@ -438,53 +432,32 @@ def plot_stable_phase_distribution_grouped(stable_phases):
     durations = stable_phases["durations"]
     mean_S = stable_phases["means"]
 
-    # --- discrétisation ---
-    mean_S_rounded = np.round(mean_S, 2)
-
-    # --- empilement ---
-    data = np.stack((durations, mean_S_rounded), axis=1)
-
-    # --- comptage vectorisé ---
-    unique, counts = np.unique(data, axis=0, return_counts=True)
-
-    # --- plot ---
-    plt.scatter(unique[:,0], unique[:,1], c=counts, marker='.', s=5)
-    plt.ylabel("Mean shading")
-    plt.xlabel("Duration (m)")
-    plt.colorbar(label="Count")
-
-def plot_stable_phase_distribution_grouped(stable_phases):
-
-    durations = stable_phases["durations"]
-    mean_S = stable_phases["means"]
-
-    hb = plt.hexbin(durations, mean_S, gridsize=100, mincnt=1, norm='log', cmap='jet')
-    plt.colorbar(hb, label="Count (log)")
+    if len(durations):
+        hb = plt.hexbin(durations, mean_S, gridsize=100, mincnt=1, norm='log', cmap='jet')
+        plt.colorbar(hb, label="Count (log)")
     plt.xlabel("Duration (minutes)")
     plt.ylabel("Shading")
 
 def plot_stable_phase_histogram(stable_phases, dt, logscale=True):
     values, counts = np.unique(stable_phases["durations"], return_counts=True)
-    values, counts = zip(*sorted(zip(values, counts), key=lambda v:v[0]))
-    print(dt*0.8)
     plt.bar(values, counts, (dt/60)*0.8, log=logscale)
     plt.ylabel("Number of phases")
     plt.xlabel("Duration (minutes)")
     plt.tight_layout()
 
-def plot_stable_phase(S, stable_phases, timeline, day =  '2023/06/21', plot = 2525):
+def plot_stable_phase(S, stable_phases, timeline, day, plot=0):
     durations, mean_S, plots, starts, ends = stable_phases["durations"], stable_phases["means"], stable_phases["plots"], stable_phases["starts"], stable_phases["ends"]
-    mask = (plots == plot)     
+    mask = (plots == plot)
     durations = durations[mask]
     starts = starts[mask]
     ends = ends[mask]
-    mean_S = mean_S[mask]    
+    mean_S = mean_S[mask]
     plt.plot(timeline, S[plot,:], alpha=0.8)
     plt.tick_params("x", rotation=30)
     plt.hlines(mean_S, timeline[starts], timeline[ends-1], color='red')
     plt.ylabel("Shading")
     plt.xlabel("Days")
-    from data_util import timeline_select_dates
+    from .data_util import timeline_select_dates
     mask = timeline_select_dates(timeline,day)
     plt.xlim((mask[0],mask[-1]))
 
@@ -540,44 +513,3 @@ def plot_feature_space_with_kmeans(std_rel_all, slope_all, kmeans,
     # ---------------------------------------------------------------------------
 # Exemple d'utilisation / test rapide
 # ---------------------------------------------------------------------------
-if __name__ == "__main__":
-    import matplotlib.pyplot as plt
-
-    rng = np.random.default_rng(42)
-    nt = 500
-    timeline = np.array(
-        [np.datetime64("2023-06-21T07:00") + np.timedelta64(int(i * 2), "m") for i in range(nt)]
-    )
-
-    # Signal synthétique : deux phases stables + bruit + transitoire
-    S_row = np.concatenate([
-        np.full(80, 0.28) + rng.normal(0, 0.005, 80),   # phase stable ~0.28
-        np.linspace(0.28, 0.15, 40) + rng.normal(0, 0.01, 40),  # transition
-        rng.uniform(0.10, 0.42, 200),                   # phase variable
-        np.full(80, 0.22) + rng.normal(0, 0.005, 80),   # phase stable ~0.22
-        rng.uniform(0.05, 0.30, 100),                   # fin variable
-    ])
-    S = S_row[np.newaxis, :]  # shape (1, nt)
-
-    durations, meanS, plots, starts, ends = segment_stable_phases(
-        S, timeline, dt=2
-    )
-
-    t_min = (timeline - timeline[0]) / np.timedelta64(1, "m")
-
-    fig, ax = plt.subplots(figsize=(12, 4))
-    ax.plot(t_min, S_row, color="steelblue", lw=0.8, label="Ombrage")
-    for s, e, m in zip(starts, ends, meanS):
-        ax.axhspan(m - 0.005, m + 0.005, xmin=t_min[s] / t_min[-1],
-                   xmax=t_min[e - 1] / t_min[-1], alpha=0.15, color="red")
-        ax.hlines(m, t_min[s], t_min[e - 1], colors="red", lw=2)
-    ax.set_xlabel("Temps (min)")
-    ax.set_ylabel("Ombrage")
-    ax.set_title("Phases stables détectées")
-    ax.legend()
-    plt.tight_layout()
-    plt.savefig("/mnt/user-data/outputs/test_stable_phases.png", dpi=120)
-    print(f"{len(starts)} phases stables détectées.")
-    for k in range(len(starts)):
-        print(f"  Segment {k+1}: t={t_min[starts[k]]:.0f}–{t_min[ends[k]-1]:.0f} min, "
-              f"ombrage moyen={meanS[k]:.3f}, durée={durations[k]:.0f} min")

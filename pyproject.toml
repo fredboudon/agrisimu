@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agrisimu"
+version = "0.1.0"
+description = "Analyse de l’irradiance et de son intermittence sous panneaux agrivoltaïques"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "matplotlib>=3.7",
+    "numpy>=1.24",
+    "pandas>=2",
+    "scikit-learn>=1.2",
+    "scipy>=1.10",
+    "seaborn>=0.13",
+]
+
+[project.optional-dependencies]
+yield = ["statsmodels>=0.14"]
+
+[tool.setuptools.packages.find]
+where = ["src"]

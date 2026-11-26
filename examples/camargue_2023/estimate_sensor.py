@@ -1,18 +1,19 @@
-
 import pandas
-from openalea.plantgl.all import *
+from openalea.plantgl.all import LightEstimator, Vector3
 
-import os, sys
+import os
 
-from importlib import reload
-import generateplot; reload(generateplot)
-from generateplot import *
+from .generateplot import agristructure
 
-import data_util; reload(data_util)
-from data_util import *
-from meteo import *
+from agrisimu.data_util import meteo_select_dates
+from .localization import localisation
+from .meteo import date2m, setup_meteo
+from .paths import OUTPUT_DIR
 
-import time, datetime, pytz
+import datetime
+import time
+
+import numpy as np
 from os.path import join
 
 import matplotlib.pyplot as plt
@@ -25,7 +26,7 @@ RESOLUTION = 0.01  # in meters
 sensordict = {'c2': Vector3(27.3,4.63,2), 'c3': Vector3(20.54,7.82,2)}
 
 """ Ne considerez que du '17-May' au '31-Oct' """
-def process_sensors(meteo=meteo, mindate = None, maxdate = None, view = False, outdir = 'result_sensors'):
+def process_sensors(meteo, mindate = None, maxdate = None, view = False, outdir = OUTPUT_DIR / 'result_sensors'):
     """
     Process light simulation for an agrivoltaic scene over a specified date range.
     Simulates solar irradiance and sky conditions based on meteorological data,
@@ -87,7 +88,7 @@ def process_sensors(meteo=meteo, mindate = None, maxdate = None, view = False, o
 
     for _meteo, height in zip(meteos, heights):
       if len(_meteo.index) > 0:
-        l.clear_sensors()        
+        l.clear_sensors()
         for name, pos in sensordict.items():
                 pos.z = height
                 l.add_sensor(name, pos)
@@ -122,10 +123,10 @@ def process_sensors(meteo=meteo, mindate = None, maxdate = None, view = False, o
     results = results.set_index(index)
     results.rename(columns={sensorid : 'simulated_'+sensorid for sensorid in sensordict.keys()}, inplace=True)
     results = results.join(meteo.loc[results.index])
-    
+
     if outdir:
         results.to_csv(join(outdir,fname+'.csv'),sep='\t')
-        
+
     return results
 
 def resample(data, target_length = '1h'):
@@ -183,10 +184,10 @@ def plot_comparison(results, ci, coloring = 'h', label = 'Global Radiation (W m$
         bounds = np.arange(minh-0.5, maxh+0.5, 1)   # bornes pour centrer sur entiers
         norm = BoundaryNorm(bounds, cmap.N)
 
-        sc = plt.scatter(x, y,c=colorindex,         
+        sc = plt.scatter(x, y,c=colorindex,
                          cmap=cmap,
                          norm=norm, s=10, alpha=0.7)
-        
+
         plt.xlabel(f'Observed {label}')
         plt.ylabel(f'Simulated {label}')
         plt.colorbar(sc, ticks=range(minh, maxh + 1), label=('Hour' if coloring == 'h' else ('Month' if coloring == 'M' else 'Day of Year')))
@@ -209,13 +210,13 @@ def plot_comparison(results, ci, coloring = 'h', label = 'Global Radiation (W m$
             bbox=dict(boxstyle='round', facecolor='white', alpha=0.8)
         )
 
-def plot_result(results, outdir = 'result_sensors'):
+def plot_result(results, outdir = OUTPUT_DIR / 'result_sensors'):
     import matplotlib.dates as mdates
     print(results.columns.tolist())
     figsize=(15,5)
     sensors = ['c2','c3']
     for ci in sensors:
-        results[[ci,'simulated_'+ci]].plot(figsize=figsize)        
+        results[[ci,'simulated_'+ci]].plot(figsize=figsize)
         plt.savefig(join(outdir,'sensor_'+ci+'.png'))
         plt.close()
 
@@ -274,7 +275,7 @@ def plot_result(results, outdir = 'result_sensors'):
             if j == 3:
                 ax.text(1.05, 0.5, ci, transform=ax.transAxes,
                         rotation=90, va='center')
-            
+
             ax.xaxis.set_major_formatter(mdates.DateFormatter('%H'))
             ax.xaxis.set_major_locator(mdates.HourLocator(byhour=[0,6,12,18,24]))
 
@@ -292,7 +293,7 @@ def plot_result(results, outdir = 'result_sensors'):
            loc='upper center',
            ncol=2,
            frameon=False)
-    plt.tight_layout(rect=[0.05, 0.1, 1, 0.95]) 
+    plt.tight_layout(rect=[0.05, 0.1, 1, 0.95])
     plt.savefig(join(outdir,'sensor_exampledays.png'))
     plt.close()
 
@@ -300,10 +301,6 @@ def plot_result(results, outdir = 'result_sensors'):
 
 
 
-if __name__ == '__main__':
-    # date(month,day,hour)
-    setup_meteo()
-    assert meteo is not None, "Meteo data not loaded. Please check the setup_meteo function."
-    results = process_sensors(meteo, view=True)
+if __name__ == "__main__":
+    results = process_sensors(setup_meteo().meteo, view=True)
     plot_result(results)
-

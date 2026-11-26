@@ -1,116 +1,4 @@
-
-import pandas
-from localization import *
-
-
-date2m = '2023/6/21 12:0:0'
-
-
-def read_meteo(data_file='2023_PAR_c1.txt', localisation = localisation['timezone']):
-    """ reader for mango meteo files """
-    data = pandas.read_csv(data_file, delimiter = '\t', dayfirst=True)
-
-    #data = data.rename(columns={'date_time':'date_time',
-    #                             'par':'global_radiation'})
-    # convert kW.m-2 to W.m-2
-    #data['global_radiation'] *= 1000.
-    index = pandas.DatetimeIndex(data['date_time']).tz_localize(localisation)
-    data.drop(columns=["date_time"], inplace=True)
-    data = data.set_index(index)
-    return data
-
-
-def get_meteo(capteur='c1'):
-    ppfd = read_meteo(data_file='2023_PAR_'+capteur+'.txt')
-    global_radiation = read_meteo(data_file='2023_globalradiations_'+capteur+'.txt')
-    #ppfd.rename(columns={'par':'PAR'}, inplace=True)
-    from openalea.astk.sky_irradiance import sky_irradiance
-    sky_irr = sky_irradiance(dates=ppfd.index, ghi=global_radiation['Rg'], ppfd=ppfd['PAR'], latitude=localisation['latitude'], longitude=localisation['longitude'], altitude=localisation['altitude'])
-    return sky_irr
-
-def prepare_meteo(shadinglevel=0.5):
-    c1 = get_meteo('c1')
-    c2 = read_meteo('2023_globalradiations_c2.txt')
-    c3 = read_meteo('2023_globalradiations_c3.txt')
-    c1 = c1.loc[c1.index.isin(c2.index)]
-    c1 = c1.loc[c1.index.isin(c3.index)]
-    c2 = c2.loc[c2.index.isin(c1.index)]
-    c3 = c3.loc[c3.index.isin(c1.index)]
-
-    r = c2['Rg'].gt(c1['ghi'])
-    c2.mask(r,c1[r]['ghi'], axis=1, inplace=True)
-    r = c3['Rg'].gt(c1['ghi'])
-    c3.mask(r,c1[r]['ghi'], axis=1, inplace=True)
-
-    meteo = c1
-    meteo = meteo.join(c2['Rg'], how='inner')
-    meteo.rename(columns={'Rg':'c2'}, inplace=True)
-    meteo = meteo.join(c3['Rg'], how='inner')
-    meteo.rename(columns={'Rg':'c3'}, inplace=True)
-
-    #meteo['azimuth'] = to_clockwise( meteo['azimuth'])
-
-    # compute shading ratios
-    meteo['c2shading'] = 1- meteo['c2']/meteo['ghi']
-    meteo['c3shading'] = 1- meteo['c3']/meteo['ghi']
-
-    # Estimate shading presence with a threshold on shading ratio
-    meteo['c2shaded'] = meteo['c2shading'] > shadinglevel
-    meteo['c3shaded'] = meteo['c3shading'] > shadinglevel
-
-    # on enleve le premier et le dernier jour qui sont incomplets
-    meteo = meteo.loc[
-    (meteo.index.date != meteo.index.date[0]) &
-    (meteo.index.date != meteo.index.date[-1])]
-
-    return meteo
-
-def quantize_meteo(meteo, precision = 1):
-    collector = {}
-    for date, row in meteo.iterrows():
-        azimuth, elevation = row['azimuth'], row['elevation']
-        qaz = round(azimuth/precision)*precision
-        qel = round(elevation/precision)*precision
-        collector.setdefault((qaz, qel), [])
-        collector[(qaz,qel)].append((date,row))
-    propname = ['ghi','dhi','c2','c3','c2shading','c3shading','c2shaded','c3shaded']
-    res = { name : [] for name in ['azimuth', 'elevation','zenith','date_time']+propname }
-    for (az,el), rows in collector.items():
-        res['azimuth'].append(az)
-        res['elevation'].append(el)
-        res['zenith'].append(90-el)
-        imax = max([(row['ghi'],i) for i,(date, row) in enumerate(rows)], key=lambda x : x[0])[1]
-        res['date_time'].append(rows[imax][0])
-        rowmax = rows[imax][1]
-        for pname in propname:
-            res[pname].append(rowmax[pname])
-    data = pandas.DataFrame(res)
-    index = pandas.DatetimeIndex(data['date_time'])
-    data.drop(columns=["date_time"], inplace=True)
-    data = data.set_index(index)
-    return data
- 
-meteo, meteo90, meteo200, clearsky, clearsky90, clearsky200, clearskyQ, clearskyQ90, clearskyQ200 = [None]*9
-
-def setup_meteo():
-    global meteo, meteo90, meteo200, clearsky, clearsky90, clearsky200, clearskyQ, clearskyQ90, clearskyQ200
-    if meteo is None: 
-        print("Preparing meteo data...")
-        meteo = prepare_meteo()
-        meteo90 = meteo[meteo.index < date2m]
-        meteo200 = meteo[meteo.index >= date2m]
-        clearsky = meteo[meteo['ghi'] *0.5 > meteo['dhi']]
-        clearsky90 = meteo90[meteo90['ghi'] *0.5 > meteo90['dhi']]
-        clearsky200 = meteo200[meteo200['ghi'] *0.5 > meteo200['dhi']]
-        clearskyQ = quantize_meteo(clearsky,1)
-        clearskyQ90 = quantize_meteo(clearsky90,1)
-        clearskyQ200 = quantize_meteo(clearsky200,1)
-
-def generate_meteo(attenuation = None):
-    dates = meteo.index
-    from openalea.astk.sky_irradiance import sky_irradiance
-    sky_irr = sky_irradiance(dates=dates, attenuation=attenuation, latitude=localisation['latitude'], longitude=localisation['longitude'], altitude=localisation['altitude'])
-    return sky_irr
+"""Statistiques de durée du jour et visualisations météorologiques."""
 
 import pandas as pd
 import numpy as np
@@ -350,7 +238,7 @@ def violinplot_from_df(
     ax.grid(axis="y", alpha=0.3)
 
     if y_as_hhmm:
-        ax.yaxis.set_major_formatter(mticker.FuncFormatter(_decimal_hours_to_hhmm))
+        ax.yaxis.set_major_formatter(mticker.FuncFormatter(decimal_hours_to_hhmm))
 
     plt.tight_layout()
     return ax
@@ -397,17 +285,121 @@ def normalize_signal_by_column(series, coord, n_points=256):
 
     return pd.Series(y_new, index=u_new)
 
-setup_meteo()
+def plot_diurnal_heatmap(meteo, propname='ghi', cmap='viridis', figsize=(14, 8)):
+    """
+    Plot a meteorological daymap (days x hour of day).
 
-if __name__ == "__main__":
-    daylength, ax = violin_daylength_from_df(meteo, groupby="overall")
-    print(daylength.describe())
-    plt.show()
-    violinplot_from_df(
-    meteo,
-    value_col="azimuth",
-    groupby="month",
-    ylabel="Solar azimuth (deg)",
-    title="Distribution of solar azimuth by month"
+    Parameters
+    ----------
+    meteo : pandas.DataFrame
+        DataFrame with a DatetimeIndex.
+    propname : str
+        Name of the meteorological variable to plot.
+    cmap : str
+        Matplotlib colormap.
+    figsize : tuple
+        Figure size.
+
+    Returns
+    -------
+    fig, ax
+        Matplotlib figure and axis.
+    """
+
+    # Ensure datetime index
+    meteo = meteo.copy()
+    meteo.index = pd.to_datetime(meteo.index)
+
+    # Build day/hour table
+    tmp = pd.DataFrame({
+        "date": meteo.index.date,
+        "hour": (
+            meteo.index.hour
+            + meteo.index.minute / 60
+            + meteo.index.second / 3600
+        ),
+        propname: meteo[propname]
+    })
+
+    # Pivot: rows = days, columns = hours
+    heatmap = tmp.pivot(
+        index="date",
+        columns="hour",
+        values=propname
     )
-    plt.show()
+
+    # Sort
+    heatmap = heatmap.sort_index(axis=1)
+
+    # Transpose: rows = hours, columns = days
+    Z = heatmap.T.values
+
+    # Mask missing values so they appear white
+    Z = np.ma.masked_invalid(Z)
+
+    # Real hour coordinates
+    hours = heatmap.columns.values
+
+    # Cell edges for hours
+    if len(hours) > 1:
+        dh = np.median(np.diff(hours)) / 2
+    else:
+        dh = 0.05
+
+    y_edges = np.concatenate((
+        [hours[0] - dh],
+        hours[:-1] + dh,
+        [hours[-1] + dh]
+    ))
+
+    # Cell edges for days
+    x_edges = np.arange(len(heatmap.index) + 1)
+
+    # Plot
+    fig, ax = plt.subplots(figsize=figsize)
+
+    pcm = ax.pcolormesh(
+        x_edges,
+        y_edges,
+        Z,
+        shading='auto',
+        cmap=cmap
+    )
+
+    # Missing values in white
+    pcm.cmap.set_bad('white')
+
+    # Colorbar
+    cbar = fig.colorbar(pcm, ax=ax)
+    cbar.set_label(propname)
+
+    # Y axis
+    ax.set_ylim(0, 24)
+    ax.set_ylabel("Hour of day")
+    ax.set_yticks(np.arange(0, 25, 3))
+    ax.set_yticklabels(
+        [f"{h:02d}:00" for h in range(0, 25, 3)]
+    )
+
+    # X axis dates
+    n_days = len(heatmap.index)
+    n_ticks = min(10, n_days)
+
+    xticks = np.linspace(0, n_days - 1, n_ticks, dtype=int)
+
+    ax.set_xticks(xticks + 0.5)
+    ax.set_xticklabels(
+        [
+            pd.Timestamp(heatmap.index[i]).strftime("%Y-%m-%d")
+            for i in xticks
+        ],
+        rotation=45,
+        ha="right"
+    )
+
+    ax.set_xlabel("Date")
+    ax.set_title(f"Daymap of {propname}")
+
+    plt.tight_layout()
+
+    return fig, ax

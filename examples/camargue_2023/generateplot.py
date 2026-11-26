@@ -1,6 +1,11 @@
-from openalea.plantgl.all import *
-from math import *
-import data_util as du
+from openalea.plantgl.all import (
+    AxisRotated, Color3, Cylinder, Font, Material, PglMaterialMap, Polyline, QuadSet,
+    Scene, ScreenProjected, Shape, Text, Translated, Vector3, Viewer, discretize,
+)
+from math import radians
+from pathlib import Path
+
+from .paths import DATA_DIR, OUTPUT_DIR
 
 PANELS, POLES, WIRES, SOIL, SENSORS = 1, 2, 3, 4, 5
 # Reflectance_Up, Transmittance_Up, Reflectance_Down, Transmittance_Down
@@ -163,9 +168,9 @@ def sensorgeometry(height = 0, filter = None):
     return  Scene(floor)
 
 def plot_light_source(meteo):
-    from openalea.plantgl.light import LightEstimator, to_clockwise
+    from openalea.plantgl.light import LightEstimator
     from openalea.astk.sky_sources import caribu_light_sources
-    from localization import localisation
+    from .localization import localisation
     scene = agristructure()+sensorgeometry()
     l = LightEstimator(scene)
     l.localize(name = 'Camargue', **localisation)
@@ -182,11 +187,11 @@ def plot_light_source(meteo):
     return l
 
 
-def project_group_from_file(geometry = None, fname = 'Data_groups_clear_sky.csv'):
+def project_group_from_file(geometry = None, fname = DATA_DIR / 'clusters.csv'):
     import pandas as pd
     data = pd.read_csv(fname)
     idmap = { idx:i for i,idx in enumerate(sensorsids()) }
-    cmap = { 1 : (44, 87, 93), 2 : (195, 214, 155), 3 : (85, 143, 156), 4 : (92, 92, 50) } 
+    cmap = { 1 : (44, 87, 93), 2 : (195, 214, 155), 3 : (85, 143, 156), 4 : (92, 92, 50) }
     colors = [None for i in idmap]
     for i, row in data.iterrows():
         col, row, group = row['Col'],row['Row'],row['group_clearsky']
@@ -195,40 +200,41 @@ def project_group_from_file(geometry = None, fname = 'Data_groups_clear_sky.csv'
 
 
 def project_cluster(geometry = None, borderline = False):
-    from data_util import get_clusters
+    from .data_util import get_clusters
     clusters = get_clusters(center=False)
-    cmap = { 1 : (44, 87, 93), 2 : (195, 214, 155), 3 : (85, 143, 156), 4 : (92, 92, 50) } 
+    cmap = { 1 : (44, 87, 93), 2 : (195, 214, 155), 3 : (85, 143, 156), 4 : (92, 92, 50) }
     colors = [ Material(transparency=1) if not pid in clusters else Material(cmap[clusters[pid]], diffuse=1) for pid in sensorsids()]
     res = Scene([Shape(sh.geometry, col, sh.id) for sh, col in zip(geometry, colors)])
     if borderline:
-        clusters = get_clusters(center=True)    
+        clusters = get_clusters(center=True)
         border = [ Translated(0,0,0.01,Polyline(discretize(geom.geometry).pointList, width=5)) for pid, geom in zip(sensorsids(), geometry) if pid in clusters ]
         for line in border:
             line.geometry.pointList.append(line.geometry.pointList[0])
         res += Scene([Shape(b, Material("RED", Color3(255,0,0))) for b in border])
     return res
 
-def project_data(data, vmin = None, vmax = None, cmap = 'jet'):
+def project_data(data, vmin=None, vmax=None, cmap='jet', *, geometry=None):
     if vmin is None:
         vmin = min(data.values())
     if vmax is None:
         vmax = max(data.values())
     cmap = PglMaterialMap(name=cmap, minvalue=vmin, maxvalue=vmax)
     colors = [ Material(transparency=1) if not pid in data else cmap(data[pid]) for pid in sensorsids()]
-    return Scene([Shape(sh.geometry, col, sh.id) for sh, col in zip(sensorgeometry(), colors)])
+    geometry = sensorgeometry() if geometry is None else geometry
+    return Scene([Shape(sh.geometry, col, sh.id) for sh, col in zip(geometry, colors)])
 
 #IRR_PER_PLOT = {}
-def project_irradiance(geometry, date, datarep = 'result_clear_sky', column = 'irradiance'):
-    from data_util import get_irradiances_per_plot, meteo_select_dates, timeline_select_dates
+def project_irradiance(geometry, date, datarep=OUTPUT_DIR / 'result' / 'clear_sky', column = 'irradiance'):
+    from agrisimu.data_util import get_irradiances_per_plot, meteo_select_dates, timeline_select_dates
     irr_per_plot = get_irradiances_per_plot(datarep)
     irr_per_plot = { pid : meteo_select_dates(irr_per_plot[pid], date) for pid in sensorsids() }
     vmin = min([irr_per_plot[pid][column].min() for pid in sensorsids()])
     vmax = max([irr_per_plot[pid][column].max() for pid in sensorsids()])
     for date in irr_per_plot[sensorsids()[0]].index:
         data = { pid : irr_per_plot[pid].loc[date][column] for pid in sensorsids() }
-        yield date, project_data(geometry, data, vmin=vmin, vmax=vmax)
+        yield date, project_data(data, vmin=vmin, vmax=vmax, geometry=geometry)
 
-def create_animation(sceneiterator, outputfolder = 'animation', prefix = 'frame'):
+def create_animation(sceneiterator, outputfolder=OUTPUT_DIR / 'animation', prefix = 'frame'):
     import os
     if not outputfolder is None and not os.path.exists(outputfolder):
         os.makedirs(outputfolder, exist_ok=True)
@@ -248,9 +254,9 @@ def create_animation(sceneiterator, outputfolder = 'animation', prefix = 'frame'
         if app is not None:
             app.processEvents()
 
-def projet_day_irradiance( data = 'result', date = '2023/06/20', column = 'irradiance'):
-    from data_util import get_irradiances_per_plot, meteo_select_dates
-    if type(data) == str:
+def projet_day_irradiance( data=OUTPUT_DIR / 'result' / 'weather2023', date = '2023/06/20', column = 'irradiance'):
+    from agrisimu.data_util import get_irradiances_per_plot, meteo_select_dates
+    if isinstance(data, (str, Path)):
         data = get_irradiances_per_plot(data)
     data = { pid : meteo_select_dates(data[pid], date) for pid in sensorsids() }
     vmin = min([data[pid][column].min() for pid in sensorsids()])
@@ -261,10 +267,10 @@ def projet_day_irradiance( data = 'result', date = '2023/06/20', column = 'irrad
         yield date, project_data(dataval, vmin=vmin, vmax=vmax)
 
 
-def projet_season_irradiance(data= 'result', hour = "12:00", column = 'irradiance'):
-    from data_util import get_irradiances_per_plot, meteo_select_dates
+def projet_season_irradiance(data=OUTPUT_DIR / 'result' / 'weather2023', hour = "12:00", column = 'irradiance'):
+    from agrisimu.data_util import get_irradiances_per_plot, meteo_select_dates
     import pandas as pd
-    if type(data) == str:
+    if isinstance(data, (str, Path)):
         data = get_irradiances_per_plot(data)
     data = { pid : data[pid][data[pid].index.time == pd.to_datetime(hour).time()] for pid in sensorsids() }
     vmin = min([data[pid][column].min() for pid in sensorsids()])
@@ -276,16 +282,9 @@ def projet_season_irradiance(data= 'result', hour = "12:00", column = 'irradianc
 
 
 if __name__ == "__main__":
-    #sensordict = { 'c2' : Vector3(27.5,4.5,2) , 'c3' : Vector3(22,8,2) }
-    #sensoroptdict = {'c2': Vector3(27.3,4.63,2), 'c3': Vector3(20.54,7.82,2)}
-
-    #Viewer.display(agristructure()+sensorgeometry())
-    #Viewer.display(project_cluster(sensorgeometry())+Scene([Shape(sh.geometry, Material((0,0,0), transparency = 0.5), sh.id) for sh in agristructure((0,0))]))
-    #Viewer.display(agristructure()+sensorgeometry(filter=du.filter_coord)+Scene([Shape(Translated(pos,Sphere(0.3)), Material("BLUE", Color3(0,0,255))) for name, pos in sensordict.items()]+[Shape(Translated(pos,Sphere(0.3)), Material("RES", Color3(255,0,0))) for name, pos in sensoroptdict.items()]))
-    #Viewer.display(agristructure()+sensorgeometry(filter=du.filter_coord)+Scene([Shape(Translated(pos,Sphere(0.3)), Material("BLUE", Color3(0,0,255))) for name, pos in sensordict.items()]))
-    from meteo import clearsky200
     import datetime
-    import numpy as np
-    l = plot_light_source(clearsky200[np.isin(clearsky200.index.date, [datetime.date(2023, 7, 20)])])
-    #create_animation(projet_day_irradiance(), 'anim_daily')
-    #create_animation(projet_season_irradiance(), 'anim_season')
+
+    from .meteo import setup_meteo
+
+    clearsky = setup_meteo().clearsky200
+    plot_light_source(clearsky[clearsky.index.date == datetime.date(2023, 7, 20)])

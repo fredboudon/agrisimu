@@ -83,7 +83,7 @@ def plot_smoothing_for_date(
         raise IndexError("plot_idx is out of bounds.")
 
     import pandas as pd
-    date = pd.Timestamp(date).normalize()   
+    date = pd.Timestamp(date).normalize()
     blocks = _split_into_blocks(timeline, dt, gap_factor=gap_factor)
 
     # find blocks belonging to the requested date

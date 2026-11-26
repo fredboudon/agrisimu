@@ -1,0 +1,20 @@
+name: agrisimu
+channels:
+  - openalea3
+  - fredboudon/label/rc
+  - conda-forge
+  - nodefaults
+dependencies:
+  - python=3.14
+  - pip
+  - setuptools>=64
+  - matplotlib>=3.7
+  - numpy>=1.24
+  - pandas>=2
+  - scikit-learn>=1.2
+  - scipy>=1.10
+  - seaborn>=0.13
+  - statsmodels>=0.14
+  - pyqt=5
+  - openalea3::openalea.astk>=3.1.1
+  - fredboudon/label/rc::openalea.plantgl=3.24.2

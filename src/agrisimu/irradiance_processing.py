@@ -1,117 +1,63 @@
+"""Comparaison de séries d’irradiance, indicateurs et graphiques."""
 
-from pandas import *
-import numpy as np
-from matplotlib import pyplot as plt
-from math import *
+from math import floor
 import pickle
-import importlib
-#import data_util; importlib.reload(data_util)
-from data_util import *
 import time
-import spectral_analysis; importlib.reload(spectral_analysis)
-from spectral_analysis import *
-
-def distance_between_points(dataframe, row1, col1, row2, col2, property='irradiance'):
-    df1 = retrieve_irradiance_from_plot(dataframe, row1, col1)
-    df2 = retrieve_irradiance_from_plot(dataframe, row2, col2)
-    return distance_between_timeseries(df1, df2, property=property)
-
-def distance_between_timeseries(df1, df2, property='irradiance'):
-    import numpy as np
-    if len(df1) == 0 or len(df2) == 0:
-        return np.nan
-    return (df1[property] - df2[property]).abs().mean()
-
-
-def distance_matrix(plot_irradiances, property='irradiance'):
-    nbrows = max([i for i,j in plot_irradiances.keys()])+1
-    nbcols = max([j for i,j in plot_irradiances.keys()])+1
-    coords = [(i, j) for i in range(nbcols) for j in range(nbrows)]
-    N = len(coords)
-    matrix = np.zeros((N, N), dtype=float)
-    t = time.time()
-    for a in range(N):
-        print('\r', a, '/', N, end='', flush=True)
-        col, row = coords[a]
-        for b in range(a+1, N):
-            row1, col1 = coords[b]
-            dist = distance_between_timeseries(plot_irradiances[(col, row)], plot_irradiances[(col1, row1)], property=property)
-            matrix[row*nbcols+col, row1*nbcols+col1] = dist
-            matrix[row1*nbcols+col1, row*nbcols+col] = dist
-    print('\n')
-    print('Total time to compute distance matrix:', time.time() - t)
-    return matrix
 
 import numpy as np
-from pandas import date_range
+import pandas as pd
+from matplotlib import pyplot as plt
 
-import numpy as np
-from pandas import date_range
-
-def build_timeseries_matrix(plot_irradiances, property='irradiance',  defaultvalue=0):
-    """
-    Construit une matrice de timeseries à partir d'un dictionnaire de DataFrames.
-    Supposition : toutes les séries ont les mêmes timestamps et mêmes valeurs manquantes.
-    
-    Retour :
-        coords : liste des clés triées
-        full_index : index temporel complet
-        M : matrice (nc, nt) avec valeurs complétées
-        mask_time : masque 1D (nt,) indiquant quelles colonnes étaient présentes dans l'index original
-    """
-    coords = sorted(plot_irradiances.keys())
-    dfs = [plot_irradiances[c] for c in coords]
-
-    full_index = dfs[0].index
-
-    nt = len(full_index)
-    nc = len(coords)
-
-    # matrice finale
-    M = np.zeros((nc, nt), dtype=float)
-
-    for i, df in enumerate(dfs):
-        M[i, :] = df[property].values
-
-    return coords, full_index, M
-
-def distance_matrix_fast(X):
-    import time
-    
-    N = X.shape[0]
-    D = np.zeros((N, N))
-    
-    t = time.time()
-    for a in range(N):
-        diff = np.abs(X[a] - X[a+1:])
-        D[a, a+1:] = diff.mean(axis=1)
-        D[a+1:, a] = D[a, a+1:]
-    
-    print('Total time to compute distance matrix fast:', time.time() - t)
-    return D
-
-def compute_distance_matrix(plot_irradiances, property='irradiance'):
-    coords, X = build_timeseries_matrix(plot_irradiances, property)
-    D = distance_matrix_fast(X)
-    return coords, D
-
-def cluster_distance_matrix(coords, distance_matrix, n_clusters):
-    from sklearn.cluster import AgglomerativeClustering
-    clustering = AgglomerativeClustering(n_clusters=n_clusters, linkage='ward')
-    labels = clustering.fit_predict(distance_matrix)
-    return labels
+from .data_util import dataframe_toarray, toarray, toimage, toimage_with_violin
+from .spectral_analysis import (
+    compute_bands_energy,
+    detect_spectral_bands,
+    plot_all_spectra,
+    plot_mean_spectrum,
+    plot_mean_spectrum_with_bands,
+    plot_reference_band_energy,
+    plot_spectral_map,
+    plot_spectrum_in_period,
+    spectral_analysis_matrix,
+    spectral_intermittence_index,
+)
+from .stable_phases import (
+    compute_phase_indices_per_plot,
+    plot_stable_phase,
+    plot_stable_phase_distribution_grouped,
+    plot_stable_phase_histogram,
+    segment_stable_phases,
+)
+from .statistics import (
+    compute_pca_indices,
+    compute_pca_with_clusters,
+    plot_correlation_matrix,
+    plot_pca_clusters,
+    plot_pca_indices,
+)
+from .timeseries import (
+    build_timeseries_matrix,
+    cluster_distance_matrix,
+    compute_distance_matrix,
+    distance_between_points,
+    distance_between_timeseries,
+    distance_matrix,
+    distance_matrix_fast,
+    plot_distance_matrix,
+)
 
 
-def plot_distance_matrix(coords, distance_matrix, fname):
-    import matplotlib.pyplot as plt
-    plt.matshow(distance_matrix, cmap='jet',vmin = 0, vmax=None)
-    #plt.xticks(ticks=np.arange(len(coords)), labels=[f'({c[0]},{c[1]})' for c in coords], rotation=90)
-    #plt.yticks(ticks=np.arange(len(coords)), labels=[f'({c[0]},{c[1]})' for c in coords])
-    plt.colorbar()
-    plt.show(block=False)
-    plt.savefig(fname)
-    plt.close()
-
+def _plot_distributions(ax, groups, positions):
+    """Trace les distributions disponibles aux positions des groupes."""
+    valid = []
+    for position, group in zip(positions, groups):
+        values = np.asarray(group, dtype=float)
+        values = values[np.isfinite(values)]
+        if values.size:
+            valid.append((position, values))
+    if valid:
+        present, values = zip(*valid)
+        ax.violinplot(values, positions=present, showmeans=True, showextrema=True)
 
 
 def estimate_meanvar_metrics(S):
@@ -157,14 +103,11 @@ def plot_speed_shading(S, dS, dt):
     plt.ylabel('Absolute Speed (|dS|/dt)')
     plt.colorbar(label='Density')
 
-import importlib
-import stable_phases ; importlib.reload(stable_phases)
-from stable_phases import *
 
-def intermittence_char(S, timeline = None, dt = 1, extra_params={}):
+def intermittence_char(S, timeline=None, dt=1, extra_params=None):
     print("run_stable_phase_detection")
 
-    stable_phases = segment_stable_phases(S, timeline, dt, **extra_params)
+    stable_phases = segment_stable_phases(S, timeline, dt, **(extra_params or {}))
 
     return {
         "durations": stable_phases[0],
@@ -174,7 +117,6 @@ def intermittence_char(S, timeline = None, dt = 1, extra_params={}):
         "ends": stable_phases[4]
     }
 
-    return  stable_phases 
 
 
 
@@ -213,201 +155,19 @@ def estimate_regression_residuals(S, meteo):
 
     for i in range(n_squares):
         y = S[i, :]
-        
+
         model.fit(X, y)
-        
+
         S_pred[i, :] = model.predict(X)
         residuals[i, :] = y - S_pred[i, :]
-        
+
         R2[i] = model.score(X, y)
-    
+
     return S_pred, residuals, R2
 
-def plot_correlation_matrix(df, columns, names = None, method="pearson", ax = None, figsize=(5, 4), cmap="coolwarm"):
-    """
-    Compute and plot correlation matrix.
-
-    Parameters
-    ----------
-    df : pandas.DataFrame
-    columns : list of str
-        Columns to include (e.g. ["Iq", "Is", "It", "Isp"])
-    method : str
-        "pearson", "spearman", or "kendall"
-    """
-    if names is None:
-        names = columns
-
-    # --- sélection des colonnes ---
-    data = df[columns]
-
-    # --- corrélation ---
-    corr = data.corr(method=method)
-
-    # --- plot ---
-    if ax is None:
-        fig, ax = plt.subplots(figsize=figsize)
-    else:
-        fig = ax.figure
-
-    im = ax.imshow(corr.values, cmap=cmap, vmin=-1, vmax=1)
-
-    # ticks
-    ax.set_xticks(np.arange(len(columns)))
-    ax.set_yticks(np.arange(len(columns)))
-    ax.set_xticklabels(names)
-    ax.set_yticklabels(names)
-
-    # rotation labels
-    plt.setp(ax.get_xticklabels(), rotation=45, ha="right")
-
-    # annotations
-    for i in range(len(columns)):
-        for j in range(len(columns)):
-            val = corr.values[i, j]
-            ax.text(j, i, f"{val:.2f}",
-                    ha="center", va="center",
-                    color="black")
-
-    plt.colorbar(im, ax=ax, fraction=0.046, label="Correlation")
-
-    ax.set_title(f"{method.capitalize()} correlation")
-    plt.tight_layout()
-
-    return corr, fig
-
-
-import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-
-from sklearn.decomposition import PCA
-from sklearn.preprocessing import StandardScaler
-
-
-def compute_pca_indices(df, columns=("Iq", "Is", "It", "Isp"), dropna=True):
-    """
-    Compute PCA on selected index columns.
-
-    Parameters
-    ----------
-    df : pandas.DataFrame
-        DataFrame containing the indices.
-    columns : list/tuple of str
-        Columns used for PCA.
-    dropna : bool
-        If True, remove rows with missing values.
-
-    Returns
-    -------
-    results : dict
-        Contains:
-        - scores_df: dataframe with PC coordinates
-        - loadings_df: dataframe with variable loadings
-        - explained_variance_ratio: explained variance ratio per PC
-        - pca: fitted PCA object
-        - scaler: fitted scaler
-        - used_index: original dataframe index used in PCA
-    """
-    X = df.loc[:, columns].copy()
-
-    if dropna:
-        valid_mask = X.notna().all(axis=1)
-        X = X.loc[valid_mask]
-    else:
-        if X.isna().any().any():
-            raise ValueError("NaN values found. Use dropna=True or clean the data first.")
-
-    used_index = X.index.copy()
-
-    scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(X)
-
-    pca = PCA()
-    scores = pca.fit_transform(X_scaled)
-
-    pc_names = [f"PC{i+1}" for i in range(scores.shape[1])]
-
-    scores_df = pd.DataFrame(scores, index=used_index, columns=pc_names)
-
-    loadings = pca.components_.T
-    loadings_df = pd.DataFrame(loadings, index=columns, columns=pc_names)
-
-    return {
-        "scores_df": scores_df,
-        "loadings_df": loadings_df,
-        "explained_variance_ratio": pca.explained_variance_ratio_,
-        "pca": pca,
-        "scaler": scaler,
-        "used_index": used_index,
-    }
-
-
-def plot_pca_indices(pca_results, labels=None, color=None, figsize=(6, 5)):
-    """
-    Plot PCA scores on PC1-PC2 with variable loadings.
-
-    Parameters
-    ----------
-    pca_results : dict
-        Output of compute_pca_indices().
-    labels : dict or None
-        Optional mapping for variable labels, e.g.
-        {"Iq": r"$I_q$", "Is": r"$I_s$", "It": r"$I_t$", "Isp": r"$I_{sp}$"}
-    color : array-like or None
-        Optional values to color points.
-    figsize : tuple
-        Figure size.
-    """
-    scores_df = pca_results["scores_df"]
-    loadings_df = pca_results["loadings_df"]
-    evr = pca_results["explained_variance_ratio"]
-
-    if labels is None:
-        labels = {c: c for c in loadings_df.index}
-
-    fig, ax = plt.subplots(figsize=figsize)
-
-    # --- scores
-    if color is None:
-        ax.scatter(scores_df["PC1"], scores_df["PC2"], alpha=0.7)
-    else:
-        c = np.asarray(color)
-        if len(c) != len(scores_df):
-            raise ValueError("color must have the same length as the PCA scores.")
-        sc = ax.scatter(scores_df["PC1"], scores_df["PC2"], c=c, alpha=0.7)
-        plt.colorbar(sc, ax=ax, fraction=0.046)
-
-    # --- arrows for loadings
-    arrow_scale = 2.0
-    for var in loadings_df.index:
-        x = loadings_df.loc[var, "PC1"] * arrow_scale
-        y = loadings_df.loc[var, "PC2"] * arrow_scale
-
-        ax.arrow(0, 0, x, y,
-                 color="red", width=0.01, head_width=0.08,
-                 length_includes_head=True)
-
-        ax.text(x * 1.1, y * 1.1, labels.get(var, var),
-                color="red", ha="center", va="center")
-
-    ax.axhline(0, color="gray", linewidth=0.8)
-    ax.axvline(0, color="gray", linewidth=0.8)
-
-    ax.set_xlabel(f"PC1 ({100 * evr[0]:.1f}%)")
-    ax.set_ylabel(f"PC2 ({100 * evr[1]:.1f}%)")
-    ax.set_title("PCA of intermittency indices")
-
-    ax.grid(True, alpha=0.3)
-    plt.tight_layout()
-
-    return fig, ax
-
-def analyze_irradiance_data(plot_irradiances, meteo, output='analysis', imgsize = None):
+def analyze_irradiance_data(plot_irradiances, meteo=None, output='analysis', imgsize=None, *, panels=None, examples=None, reference_bands=None):
+    """Produit les cartes et les indices pour des séries synchronisées."""
     import os
-    from importlib import reload
-    from data_util import toarray, toimage
-    from generateplot import retrieve_panel_projection
     if not os.path.exists(output):
         os.makedirs(output, exist_ok=True)
 
@@ -421,24 +181,19 @@ def analyze_irradiance_data(plot_irradiances, meteo, output='analysis', imgsize 
 
     coords, timeline, Irradiance = build_timeseries_matrix(plot_irradiances, 'irradiance')
     coords, timeline, TrIrradiance = build_timeseries_matrix(plot_irradiances, 'TrIrradiance', defaultvalue=1)
-    Shading = 1 - TrIrradiance 
+    Shading = 1 - TrIrradiance
 
+    if len(timeline) < 2:
+        raise ValueError('L’analyse nécessite au moins deux dates.')
     print('Timeline from', timeline[0], 'to', timeline[-1], 'with', len(timeline), 'points')
-    dt = list(plot_irradiances.values())[0].index.diff().seconds[1]
+    dt = (timeline[1] - timeline[0]).total_seconds()
     print('Time step between measurements (seconds):', dt)
 
-    panels = retrieve_panel_projection()
 
-    #import importlib
-    #import smoothing ; importlib.reload(smoothing)
-    #from smoothing import plot_smoothing_for_date
-    #plot_smoothing_for_date(S=Shading, timeline=timeline, dt=dt, date='2023-06-21', plot_idx=coords.index((50,15)), gap_factor=1.5, uniform_sizes=(3, 5, 9), gaussian_sigmas=(1, 2), median_sizes=(3, 5), savgol_windows=(5, 9), savgol_polyorder=2, figsize=(12, 10), show_legend=True)
-    #return
-    
     toanalyse = []
     if irradiance_metrics:
         toanalyse.append(('irradiance_', Irradiance))
-        
+
     if shading_metrics :
         toanalyse.append(('shading_', Shading))
 
@@ -468,7 +223,7 @@ def analyze_irradiance_data(plot_irradiances, meteo, output='analysis', imgsize 
             print( '********', prefix)
 
             deltaData = np.diff(data, axis=1)
-            
+
             if meanvar_metrics == True:
                 print('Mean-Var metrics')
                 mean_S, var_S = estimate_meanvar_metrics(data)
@@ -505,19 +260,23 @@ def analyze_irradiance_data(plot_irradiances, meteo, output='analysis', imgsize 
                 #plot_stable_phase_distribution(stable_phases)
                 #plt.savefig(os.path.join(output, prefix+'stable_phase_distribution.png'))
                 #plt.close()  # Close the figure to avoid displaying it in interactive environments
-                #plt.figure()                
+                #plt.figure()
                 #plot_feature_space_with_kmeans(stable_phases['std_rel_all'], stable_phases['slope_all'], stable_phases['kmeans'],
                 #                  std_thresh=stable_phases['std_thresh'], slope_thresh=stable_phases['slope_thresh'])
                 #plt.savefig(os.path.join(output, prefix+'stable_phase_features.png'))
                 #plt.close()  # Close the figure to avoid displaying it in interactive environments
-                for day in ['2023/05/21', '2023/06/07', '2023/06/21', '2023/07/07', '2023/07/21', '2023/08/07', '2023/08/21', '2023/09/07', '2023/09/21', '2023/10/09']:
-                     plt.figure()
-                     plot_stable_phase(data, stable_phases, timeline, day=day, plot=coords.index((50,15)))
-                     plt.savefig(os.path.join(output, prefix+f'stable_phase_example_{day.replace("/","")}.png'))
-                     plt.close()  # Close the figure to avoid displaying it in interactive environments
+                if examples is not None:
+                    coord, days = examples
+                    if coord in coords:
+                        available_days = set(timeline.strftime("%Y/%m/%d"))
+                        for day in days:
+                            if day in available_days:
+                                plt.figure()
+                                plot_stable_phase(data, stable_phases, timeline, day=day, plot=coords.index(coord))
+                                plt.savefig(os.path.join(output, f'{prefix}stable_phase_example_{day.replace("/", "")}.png'))
+                                plt.close()
 
-
-                phase_indices = compute_phase_indices_per_plot(stable_phases['durations'], stable_phases['plots'], stable_phases['means'], timeline)
+                phase_indices = compute_phase_indices_per_plot(stable_phases['durations'], stable_phases['plots'], stable_phases['means'], timeline, n_plots=len(coords))
                 toimage_with_violin(dataframe_toarray(phase_indices, coords, 'stable_fraction',size=imgsize, boxes = panels), fname=os.path.join(output,prefix+'stable_phase_fraction.png'))
                 If = phase_indices['stable_fraction']
 
@@ -532,7 +291,7 @@ def analyze_irradiance_data(plot_irradiances, meteo, output='analysis', imgsize 
                 if clustering == True:
                     labels = cluster_metrics(4, mean_S, var_S, var_dS)
                     toimage(toarray(coords, labels, size=imgsize, boxes = panels), fname=os.path.join(output,prefix+'clustering.png'), vmin=0, vmax=3, cmap='tab10')
-            
+
             if clustering == True:
                 print('Distance matrix analysis')
                 labels = cluster_distance_matrix(coords, distance_matrix_fast(data), n_clusters=4)
@@ -544,15 +303,15 @@ def analyze_irradiance_data(plot_irradiances, meteo, output='analysis', imgsize 
 
             if spectral_analysis == True:
                 print('Spectral analysis')
-                spectrum_example,  spectrum_intermittence_index, reference_bands = [True]*3
+                spectrum_intermittence_index = True
                 all_spectrum, spectral_map, spectrum_biggestfreq = [False]*3
                 freqs, powers = spectral_analysis_matrix(data, dt=dt)
                 log_scale_option = [False]
-                if spectrum_example:
+                if examples is not None and examples[0] in coords:
                     for log_scale in log_scale_option:
-                        plot_spectrum_in_period(freqs, powers, coords.index((50,15)), log_scale = log_scale)
+                        plot_spectrum_in_period(freqs, powers, coords.index(examples[0]), log_scale = log_scale)
                         plt.savefig(os.path.join(output, prefix+'power_spectrum_central'+('_log' if log_scale else '') +'.png'))
-                        print('Saved power spectrum for central plot (50,15)')
+                        print('Saved power spectrum for', examples[0])
                         plt.close()  # Close the figure to avoid displaying it in interactive environments
                 for log_scale in log_scale_option:
                     plot_mean_spectrum(freqs, powers, log_scale = log_scale)
@@ -571,8 +330,8 @@ def analyze_irradiance_data(plot_irradiances, meteo, output='analysis', imgsize 
                         plt.savefig(os.path.join(output, prefix+'spectral_map'+('_log' if log_scale else '') +'.png'))
                         plt.close()
                     print('Saved spectral map')
-                if reference_bands:
-                    ref_bands = {'peaks': array([401, 534, 134, 268, 668]), 'bands': [(395, 446), (526, 617), (129, 181), (262, 299), (661, 749)]}
+                if reference_bands and len(freqs) >= max(end for _, end in reference_bands['bands']):
+                    ref_bands = reference_bands
                     energy = compute_bands_energy(powers, ref_bands['bands'])
                     plot_reference_band_energy(ref_bands, freqs, energy)
                     plt.savefig(os.path.join(output, prefix+'spectral_reference_bands.png'))
@@ -606,7 +365,7 @@ def analyze_irradiance_data(plot_irradiances, meteo, output='analysis', imgsize 
                         toimage_with_violin(toarray(coords, sp_index, size=imgsize, boxes = panels), fname=os.path.join(output,prefix+f'spectral_intermittence_index.png'), vmin=None)
                         Isp = sp_index
             if  meanvar_metrics and stable_phases_metrics and  spectral_analysis :
-                df_indices = DataFrame({'Iq': Iq, 'If': If, 'It': It, 'Isp': Isp, 'Is': Is})
+                df_indices = pd.DataFrame({'Iq': Iq, 'If': If, 'It': It, 'Isp': Isp, 'Is': Is})
                 columns = ['Iq', 'Isp', 'If', 'It', 'Is']
                 latex_labels = {
                     "Iq": r"$I_q$",
@@ -630,12 +389,7 @@ def analyze_irradiance_data(plot_irradiances, meteo, output='analysis', imgsize 
                 axes = [ax0, ax1, ax2, ax3, ax4]
 
                 for i, col in enumerate(columns):
-                    axes[i].violinplot(
-                        [df_indices[col].dropna()],
-                        positions=[1],
-                        showmeans=True,
-                        showextrema=True
-                    )
+                    _plot_distributions(axes[i], [df_indices[col]], [1])
                     axes[i].set_title(latex_labels[col])
                     axes[i].set_xticks([1])
                     axes[i].set_xticklabels([])
@@ -649,6 +403,9 @@ def analyze_irradiance_data(plot_irradiances, meteo, output='analysis', imgsize 
                 plt.savefig(os.path.join(output,prefix+f'correlation_intermittence_metrics.png'))
                 plt.close()
 
+                df_indices["mean_S"] = mean_S
+                if len(df_indices[columns].dropna()) < 2:
+                    return df_indices
                 pca_results = compute_pca_indices(df_indices, columns=columns)
                 fig, ax = plot_pca_indices(pca_results, labels=latex_labels)
                 plt.savefig(os.path.join(output,prefix+f'pca_intermittence_metrics.png'))
@@ -660,8 +417,6 @@ def analyze_irradiance_data(plot_irradiances, meteo, output='analysis', imgsize 
 
                 toimage_with_violin(toarray(coords, df_indices["I_global"], size=imgsize, boxes = panels), fname=os.path.join(output,prefix+f'global_intermittence_index1.png'), vmin=None)
                 toimage_with_violin(toarray(coords, df_indices["I_type"], size=imgsize, boxes = panels), fname=os.path.join(output,prefix+f'global_intermittence_index2.png'), vmin=None)
-
-                df_indices["mean_S"] = mean_S
 
                 loadings = pca_results["loadings_df"]
 
@@ -755,147 +510,9 @@ def plot_histogram_comparison(data_per_cluster):
     plt.tight_layout()
 
 
-import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
 
-from sklearn.decomposition import PCA
-from sklearn.preprocessing import StandardScaler
-
-
-def compute_pca_with_clusters(df, index_columns, cluster_column="cluster", dropna=True):
-    """
-    Compute PCA on selected index columns and keep cluster labels.
-
-    Parameters
-    ----------
-    df : pandas.DataFrame
-        Must contain the index columns and the cluster column.
-    index_columns : list of str
-        Names of the columns used for PCA.
-    cluster_column : str
-        Name of the column containing cluster labels.
-    dropna : bool
-        If True, remove rows with missing values in selected columns.
-
-    Returns
-    -------
-    results : dict
-        Contains:
-        - scores_df: dataframe with PCA coordinates and cluster labels
-        - loadings_df: dataframe with variable loadings
-        - explained_variance_ratio: explained variance ratio
-        - pca: fitted PCA object
-        - scaler: fitted scaler
-    """
-    cols = list(index_columns) + [cluster_column]
-    data = df.loc[:, cols].copy()
-
-    if dropna:
-        data = data.dropna(subset=cols)
-    else:
-        if data[cols].isna().any().any():
-            raise ValueError("NaN values found. Use dropna=True or clean the dataframe first.")
-
-    X = data[index_columns].to_numpy(dtype=float)
-    clusters = data[cluster_column].to_numpy()
-
-    scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(X)
-
-    pca = PCA()
-    scores = pca.fit_transform(X_scaled)
-
-    pc_names = [f"PC{i+1}" for i in range(scores.shape[1])]
-    scores_df = pd.DataFrame(scores, columns=pc_names, index=data.index)
-    scores_df[cluster_column] = clusters
-
-    loadings = pca.components_.T
-    loadings_df = pd.DataFrame(loadings, index=index_columns, columns=pc_names)
-
-    return {
-        "scores_df": scores_df,
-        "loadings_df": loadings_df,
-        "explained_variance_ratio": pca.explained_variance_ratio_,
-        "pca": pca,
-        "scaler": scaler,
-    }
-
-
-def plot_pca_clusters(
-    pca_results,
-    cluster_column="cluster",
-    labels=None,
-    figsize=(7, 6),
-    arrow_scale=2.0,
-    cluster_label = 'Cluster',
-    cluster_title = 'Cluster',
-    alpha=0.75
-):
-    """
-    Plot PCA scores on PC1-PC2 colored by cluster, with variable loadings.
-    """
-    scores_df = pca_results["scores_df"]
-    loadings_df = pca_results["loadings_df"]
-    evr = pca_results["explained_variance_ratio"]
-
-    if labels is None:
-        labels = {c: c for c in loadings_df.index}
-
-    fig, ax = plt.subplots(figsize=figsize)
-
-    clusters = pd.unique(scores_df[cluster_column])
-    clusters = sorted(clusters)
-
-    # scatter by cluster
-    for cl in clusters:
-        sub = scores_df[scores_df[cluster_column] == cl]
-        ax.scatter(
-            sub["PC1"],
-            sub["PC2"],
-            label=f"{cluster_label} {cl}",
-            alpha=alpha
-        )
-
-    # loading arrows
-    for var in loadings_df.index:
-        x = loadings_df.loc[var, "PC1"] * arrow_scale
-        y = loadings_df.loc[var, "PC2"] * arrow_scale
-
-        ax.arrow(
-            0, 0, x, y,
-            color="red",
-            width=0.01,
-            head_width=0.08,
-            length_includes_head=True
-        )
-        ax.text(
-            x * 1.12, y * 1.12,
-            labels.get(var, var),
-            color="red",
-            ha="center", va="center"
-        )
-
-    ax.axhline(0, color="gray", linewidth=0.8)
-    ax.axvline(0, color="gray", linewidth=0.8)
-
-    ax.set_xlabel(f"PC1 ({100 * evr[0]:.1f}%)")
-    ax.set_ylabel(f"PC2 ({100 * evr[1]:.1f}%)")
-    ax.set_title(f"PCA of indices colored by {cluster_title}")
-    ax.legend()
-    ax.grid(True, alpha=0.3)
-    plt.tight_layout()
-
-    return fig, ax
-
-def compare_treatments(irradiances, clusters_file ='clusters.csv', output='clusters_comparison',imgsize = (30,100)):
-    irradiances_per_clusters = sort_irradiances_per_cluster_from_file(irradiances, clusters_file, True)
-    return compare_clusters(irradiances_per_clusters, cluster_name = 'T', cluster_title='per Treatment', output=output, imgsize=imgsize)
-
-def compare_clusters(irradiances_per_clusters, cluster_name = 'Cluster', cluster_title='per Cluster', cluster_order=None,output='clusters_comparison',imgsize = (30,100)):
+def compare_clusters(irradiances_per_clusters, cluster_name = 'Cluster', cluster_title='per Cluster', cluster_order=None,output='clusters_comparison',imgsize=None, *, panels=None, reference_bands=None):
     import os
-    from data_util import toarray, toimage
-    from generateplot import retrieve_panel_projection
     from scipy.stats import kruskal, mannwhitneyu
     import itertools
     print(" *** Compare clusters ***")
@@ -903,9 +520,9 @@ def compare_clusters(irradiances_per_clusters, cluster_name = 'Cluster', cluster
     if not os.path.exists(output):
         os.makedirs(output, exist_ok=True)
 
-    panels = retrieve_panel_projection()
-    dt = {key : list(irradiances_per_clusters[key].values())[0].index.diff().seconds[1] for key in irradiances_per_clusters.keys()}
-    print('Time step between measurements (seconds):', dt)
+    if not irradiances_per_clusters:
+        raise ValueError('Aucun groupe à comparer.')
+    dt = {}
 
     meanvar_metrics = True
     stable_phases_metrics = True
@@ -921,21 +538,24 @@ def compare_clusters(irradiances_per_clusters, cluster_name = 'Cluster', cluster
     for clusterid, irradiances in irradiances_per_clusters.items():
         _coords, _timeline, Irradiance = build_timeseries_matrix(irradiances, 'irradiance')
         _coords, _timeline, TrIrradiance = build_timeseries_matrix(irradiances, 'TrIrradiance', defaultvalue=1)
-        Shading = 1 - TrIrradiance 
+        Shading = 1 - TrIrradiance
         Irradiances[clusterid] = Irradiance
         Shadings[clusterid] = Shading
         DeltaShadings[clusterid] = np.diff(Shading, axis=1)
         Coords[clusterid] = _coords
         Timeline[clusterid] = _timeline
+        if len(_timeline) < 2:
+            raise ValueError(f'Le groupe {clusterid} contient moins de deux dates.')
+        dt[clusterid] = (_timeline[1] - _timeline[0]).total_seconds()
 
     if cluster_order is None:
         clusters = sorted(Irradiances.keys())
     else:
-        clusters = [c for c in cluster_order if c in Irradiances]   
+        clusters = [c for c in cluster_order if c in Irradiances]
     positions = range(1, len(clusters) + 1)
     print('Comparing clusters:', clusters)
     print([(c, len(irradiances_per_clusters[c])) for c in clusters])
-    
+
     if meanvar_metrics == True:
         mean_irradiance = [Irradiances[c].mean(axis=1) for c in clusters]
 
@@ -943,7 +563,7 @@ def compare_clusters(irradiances_per_clusters, cluster_name = 'Cluster', cluster
         plt.figure()
 
         # --- Violin plot ---
-        plt.violinplot(mean_irradiance, positions=positions, showmeans=True, showextrema=True)
+        _plot_distributions(plt.gca(), mean_irradiance, positions)
         plt.xticks(positions, [f'{cluster_name} {c}' for c in clusters])
         plt.title(f'Mean Irradiance {cluster_title}')
         plt.savefig(os.path.join(output, 'irradiance_mean.png'))
@@ -951,7 +571,7 @@ def compare_clusters(irradiances_per_clusters, cluster_name = 'Cluster', cluster
 
         mean_shading = [Shadings[c].mean(axis=1) for c in clusters]
         plt.figure()
-        plt.violinplot(mean_shading, positions=positions, showmeans=True, showextrema=True)
+        _plot_distributions(plt.gca(), mean_shading, positions)
         plt.xticks(positions, [f'{cluster_name} {c}' for c in clusters])
         plt.title(f'Mean Shading {cluster_title}')
         plt.savefig(os.path.join(output, 'shading_mean.png'))
@@ -959,7 +579,7 @@ def compare_clusters(irradiances_per_clusters, cluster_name = 'Cluster', cluster
 
         plt.figure()
         Iq = [estimate_var_metrics(DeltaShadings[c], dt[c])[1]*3600 for c in clusters]
-        plt.violinplot(Iq, positions=positions, showmeans=True, showextrema=True)
+        _plot_distributions(plt.gca(), Iq, positions)
         plt.xticks(positions, [f'{cluster_name} {c}' for c in clusters])
         plt.title(f'Mean Absolute Delta Shading {cluster_title}')
         plt.savefig(os.path.join(output, 'delta_shading_mean_abs.png'))
@@ -976,12 +596,13 @@ def compare_clusters(irradiances_per_clusters, cluster_name = 'Cluster', cluster
                 #plt.savefig(os.path.join(output, 'mean_spectrum_cluster_{}.png').format(clusterid))
                 #plt.close()
                 #print('Saved mean power spectrum')
-                ref_bands = {'peaks': array([401, 534, 134, 268, 668]), 'bands': [(395, 446), (526, 617), (129, 181), (262, 299), (661, 749)]}
-                energy = compute_bands_energy(powers, ref_bands['bands'])
-                plot_reference_band_energy(ref_bands, freqs, energy)
-                plt.savefig(os.path.join(output, 'spectral_reference_bands_cluster_{}.png').format(clusterid))
-                plt.close()
-                print('Saved spectral reference bands energy plot:'+repr('spectral_reference_bands_cluster_{}.png').format(clusterid))
+                if reference_bands and len(freqs) >= max(end for _, end in reference_bands['bands']):
+                    ref_bands = reference_bands
+                    energy = compute_bands_energy(powers, ref_bands['bands'])
+                    plot_reference_band_energy(ref_bands, freqs, energy)
+                    plt.savefig(os.path.join(output, 'spectral_reference_bands_cluster_{}.png').format(clusterid))
+                    plt.close()
+                    print('Saved spectral reference bands energy plot:'+repr('spectral_reference_bands_cluster_{}.png').format(clusterid))
 
                 spectral_bands = detect_spectral_bands(freqs, powers)
                 if spectral_bands_analysis and spectral_bands:
@@ -1002,7 +623,7 @@ def compare_clusters(irradiances_per_clusters, cluster_name = 'Cluster', cluster
 
         # --- Violin plot ---
         data = [spectral_intermittence_index_per_cluster[c] for c in clusters]
-        plt.violinplot(data, positions=positions, showmeans=True, showextrema=True)
+        _plot_distributions(plt.gca(), data, positions)
         plt.xticks(positions, [f'{cluster_name} {c}' for c in clusters])
         plt.title(f'Spectral Intermittence Index {cluster_title}')
         plt.savefig(os.path.join(output, 'intermittence_index.png'))
@@ -1010,7 +631,7 @@ def compare_clusters(irradiances_per_clusters, cluster_name = 'Cluster', cluster
 
     if stable_phases_metrics == True:
         phase_length_per_cluster = {}
-        
+
         phase_fraction_per_cluster = {}
         phase_mean_length_per_cluster = {}
         phase_mean_shading_per_cluster = {}
@@ -1023,7 +644,7 @@ def compare_clusters(irradiances_per_clusters, cluster_name = 'Cluster', cluster
                     pickle.dump(stable_phases, open(cache_fname,'wb'))
                 print('Found', len(stable_phases["durations"]), 'stable phases')
                 phase_length_per_cluster[clusterid] = stable_phases["durations"]
-                phase_indices = compute_phase_indices_per_plot(stable_phases['durations'], stable_phases['plots'], stable_phases['means'], Timeline[clusterid])
+                phase_indices = compute_phase_indices_per_plot(stable_phases['durations'], stable_phases['plots'], stable_phases['means'], Timeline[clusterid], n_plots=len(Coords[clusterid]))
                 phase_fraction_per_cluster[clusterid] = phase_indices["stable_fraction"]
                 phase_mean_length_per_cluster[clusterid] = phase_indices["mean_phase_duration"]
                 phase_mean_shading_per_cluster[clusterid] = phase_indices["mean_phase_shading"]
@@ -1038,21 +659,21 @@ def compare_clusters(irradiances_per_clusters, cluster_name = 'Cluster', cluster
                 plt.figure()
         # --- Violin plot ---
         data = [phase_length_per_cluster[c] for c in clusters]
-        plt.violinplot(data, positions=positions, showmeans=True, showextrema=True)
+        _plot_distributions(plt.gca(), data, positions)
         plt.xticks(positions, [f'{cluster_name} {c}' for c in clusters])
         plt.title(f'Stable Phase Lengths {cluster_title}')
         plt.savefig(os.path.join(output, 'stable_phase_length.png'))
         plt.close()
 
         data = [phase_fraction_per_cluster[c] for c in clusters]
-        plt.violinplot(data, positions=positions, showmeans=True, showextrema=True)
+        _plot_distributions(plt.gca(), data, positions)
         plt.xticks(positions, [f'{cluster_name} {c}' for c in clusters])
         plt.title(f'Stable Phase Fractions {cluster_title}')
         plt.savefig(os.path.join(output, 'stable_fraction.png'))
         plt.close()
 
         data = [phase_mean_shading_per_cluster[c] for c in clusters]
-        plt.violinplot(data, positions=positions, showmeans=True, showextrema=True)
+        _plot_distributions(plt.gca(), data, positions)
         plt.xticks(positions, [f'{cluster_name} {c}' for c in clusters])
         plt.title(f'Stable Phase Mean Shading {cluster_title}')
         plt.savefig(os.path.join(output, 'stable_mean_shading.png'))
@@ -1073,27 +694,27 @@ def compare_clusters(irradiances_per_clusters, cluster_name = 'Cluster', cluster
         ax3 = plt.subplot2grid((2, 6), (1, 2), colspan=2)  # colonnes 2-3
         ax4 = plt.subplot2grid((2, 6), (1, 4), colspan=2)  # colonnes 4-5
 
-        ax0.violinplot(Iq, positions=positions, showmeans=True, showextrema=True)
+        _plot_distributions(ax0, Iq, positions)
         ax0.set_xticks(positions, [f'{cluster_name} {c}' for c in clusters])
         ax0.set_title(f'$I_{{q}}$ : Mean Absolute Shading Speed {cluster_title}', fontsize=10)
 
         data = [spectral_intermittence_index_per_cluster[c] for c in clusters]
-        ax1.violinplot(data, positions=positions, showmeans=True, showextrema=True)
+        _plot_distributions(ax1, data, positions)
         ax1.set_xticks(positions, [f'{cluster_name} {c}' for c in clusters])
         ax1.set_title(f'$I_{{sp}}$ : Spectral Intermittence Index {cluster_title}', fontsize=10)
 
         data = [phase_mean_length_per_cluster[c] for c in clusters]
-        ax2.violinplot(data, positions=positions, showmeans=True, showextrema=True)
+        _plot_distributions(ax2, data, positions)
         ax2.set_xticks(positions, [f'{cluster_name} {c}' for c in clusters])
         ax2.set_title(f'$I_{{t}}$ : Stable Phase Lengths {cluster_title}', fontsize=10)
 
         data = [phase_fraction_per_cluster[c] for c in clusters]
-        ax3.violinplot(data, positions=positions, showmeans=True, showextrema=True)
+        _plot_distributions(ax3, data, positions)
         ax3.set_xticks(positions, [f'{cluster_name} {c}' for c in clusters])
         ax3.set_title(f'$I_{{f}}$ : Stable Phase Fractions {cluster_title}', fontsize=10)
 
         data = [phase_mean_shading_per_cluster[c] for c in clusters]
-        ax4.violinplot(data, positions=positions, showmeans=True, showextrema=True)
+        _plot_distributions(ax4, data, positions)
         ax4.set_xticks(positions, [f'{cluster_name} {c}' for c in clusters])
         ax4.set_title(f'$I_{{s}}$ : Stable Phase Mean Shading {cluster_title}', fontsize=10)
 
@@ -1121,6 +742,8 @@ def compare_clusters(irradiances_per_clusters, cluster_name = 'Cluster', cluster
 
         index_columns = ["Iq", "If", "It", "Isp", "Is"]   # adapte à tes colonnes
         cluster_column = "cluster"
+        if len(df[index_columns].dropna()) < 2:
+            return df
 
         latex_labels = {
             "Iq": r"$I_q$",
@@ -1177,10 +800,10 @@ def compare_clusters(irradiances_per_clusters, cluster_name = 'Cluster', cluster
             ax2 = plt.subplot2grid((2, 6), (1, 0), colspan=2)  # colonnes 0-1
             ax3 = plt.subplot2grid((2, 6), (1, 2), colspan=2)  # colonnes 2-3
             ax4 = plt.subplot2grid((2, 6), (1, 4), colspan=2)  # colonnes 4-5
-            for indicename, df_indice, ax in [('Iq', pd.DataFrame({cid:Iqi for cid,Iqi in zip(clusters,Iq)}), ax0), 
-                                        ('If', pd.DataFrame({cid:phase_fraction_per_cluster[cid] for cid in clusters}), ax3), 
-                                        ('It', pd.DataFrame({cid:phase_mean_length_per_cluster[cid] for cid in clusters}), ax2), 
-                                        ('Isp', pd.DataFrame({cid:spectral_intermittence_index_per_cluster[cid] for cid in clusters}), ax1), 
+            for indicename, df_indice, ax in [('Iq', pd.DataFrame({cid:Iqi for cid,Iqi in zip(clusters,Iq)}), ax0),
+                                        ('If', pd.DataFrame({cid:phase_fraction_per_cluster[cid] for cid in clusters}), ax3),
+                                        ('It', pd.DataFrame({cid:phase_mean_length_per_cluster[cid] for cid in clusters}), ax2),
+                                        ('Isp', pd.DataFrame({cid:spectral_intermittence_index_per_cluster[cid] for cid in clusters}), ax1),
                                         ('Is', pd.DataFrame({cid:phase_mean_shading_per_cluster[cid] for cid in clusters}), ax4)]:
                 plot_correlation_matrix(df_indice, columns=clusters, method="spearman", ax = ax)
                 ax.set_title(latex_labels[indicename])
@@ -1189,7 +812,7 @@ def compare_clusters(irradiances_per_clusters, cluster_name = 'Cluster', cluster
             plt.savefig(os.path.join(output,f'correlation_intermittence_metrics.png'))
             plt.close()
 
-            for indicename, df_indice in [('mean_irradiance', pd.DataFrame({cid:mean_irradiance_i for cid,mean_irradiance_i in zip(clusters, mean_irradiance)})), 
+            for indicename, df_indice in [('mean_irradiance', pd.DataFrame({cid:mean_irradiance_i for cid,mean_irradiance_i in zip(clusters, mean_irradiance)})),
                                         ('mean_shading', pd.DataFrame({cid:mean_shading_i for cid,mean_shading_i in zip(clusters, mean_shading)}))]:
                 print(f'Correlation matrix for {indicename}')
                 print(df_indice)
@@ -1200,42 +823,3 @@ def compare_clusters(irradiances_per_clusters, cluster_name = 'Cluster', cluster
 
 
         return df
-
-if __name__ == '__main__':
-    import os
-    from meteo import *
-
-    irradiances_per_plot_5min = get_irradiances_per_plot('result/weather2023')
-    #analyze_irradiance_data(irradiances_per_plot_5min, meteo, output='analysis/weather2023')
-
-    irradiances_per_plot_5min = filter_dict(irradiances_per_plot_5min)
-    #analyze_irradiance_data(irradiances_per_plot_5min, meteo, output='analysis_filtered/weather2023',imgsize = (30,100))
-    #df = compare_treatments(irradiances_per_plot_5min, output='clusters_comparison/weather2023',imgsize = (30,100))
-    #df.to_csv(os.path.join('clusters_comparison/weather2023', 'comparison_results.csv'))
-
-    #for suffix, _meteo in [ ('clear_sky', generate_meteo()), ('cloudy', generate_meteo(attenuation=0.3)), ('intermediate_sky', generate_meteo(attenuation=0.5))]:
-    #    plot_irradiances = get_irradiances_per_plot('result/'+suffix)
-    #    #analyze_irradiance_data(plot_irradiances, _meteo, output='analysis'+suffix)
-    #    #analyze_irradiance_data(filter_dict(plot_irradiances), _meteo, output='analysis_filtered'+suffix,imgsize = (30,100))
-    
-    #data = dict([(name,filter_dict(get_irradiances_per_plot('result/'+suffix))) for suffix, name in [ ('weather2023', '2023'), ('clear_sky', 'clear'), ('cloudy', 'cloudy'), ('intermediate_sky', 'intermediate')]])
-    #compare_clusters(data, cluster_name='', cluster_title = 'per Weather', cluster_order = ['2023', 'clear', 'intermediate', 'cloudy'], output='meteo_comparison',imgsize = (30,100))
-
-    #irradiances_per_plot_5min = filter_dict(irradiances_per_plot_5min)
-    def resample(data, target_length):
-        """Resample une série temporelle à une longueur cible en utilisant l'interpolation linéaire"""
-        def transform(df0, target_length):
-            agg = {"index" : "first", "row" : "first", "column" : "first", "irradiance" : "mean", "TrIrradiance" :"mean"}
-            df = df0.resample(target_length).agg(agg).dropna(subset=['irradiance'])
-            for col in df.columns:
-                if col  in ['index', 'row', 'column']:
-                    df[col] = df[col].astype(df0[col].dtype)
-            return df
-        if target_length != '5min':
-            return { key: transform(df, target_length) for key, df in data.items() }
-        return data
-
-    timesteps = ['5min', '15min', '30min', '1h']
-    #stable_phases_params = {'std_thresh': 0.1, 'slope_thresh': 0.01, 'min_duration': 3, 'max_duration': 1000}
-    data = dict([(name,resample(irradiances_per_plot_5min, name)) for  name in timesteps] )
-    compare_clusters(data, cluster_name='', cluster_title = 'per Time Resolution', cluster_order = timesteps, output='timeresolution_comparison',imgsize = (30,100))

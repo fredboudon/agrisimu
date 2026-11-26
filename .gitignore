@@ -172,3 +172,5 @@ src/meteo_comparison
 src/timeresolution_comparison
 src/yield_analysis/*
 src/.pglcache0
+# Sorties de la campagne Camargue 2023
+/examples/camargue_2023/outputs/
